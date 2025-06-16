@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { supabase } from './lib/supabaseClient';
-const CreateProjet = ({ onAjout, onCancel, userId }) => { // Added userId prop
+
+const CreateProjet = ({ onAjout, onCancel, usersList, currentUser }) => {
   const [nomProjet, setNomProjet] = useState(''); // Renamed for clarity to match previous diffs
   const [message, setMessage] = useState('');
   const [couleurProjet, setCouleurProjet] = useState('#4a90e2'); // Default color
   const [isLoading, setIsLoading] = useState(false); // Added isLoading state
-
+  const [selectedUserId, setSelectedUserId] = useState(currentUser?.id || ''); // State for selected user, default to currentUser
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -13,8 +15,8 @@ const CreateProjet = ({ onAjout, onCancel, userId }) => { // Added userId prop
       .from('projets')
       .insert([{ 
         nom: nomProjet.trim(), 
-        couleur: couleurProjet,
-        user_id: userId // Include the userId
+        color: couleurProjet,
+        user_id: selectedUserId || null // Use the selected user ID, ensure null if empty
       }]);
     if (error) {
       setMessage("Erreur : " + error.message);
@@ -50,6 +52,16 @@ const CreateProjet = ({ onAjout, onCancel, userId }) => { // Added userId prop
           <label htmlFor="couleurProjet-create" style={{ display: 'block', marginBottom: '5px' }}>Couleur du projet :</label>
           <input type="color" id="couleurProjet-create" value={couleurProjet} onChange={(e) => setCouleurProjet(e.target.value)} style={{ width: '100%', padding: '3px', boxSizing: 'border-box', height: '40px' }} />
         </div>
+        {usersList && usersList.length > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            <label htmlFor="userProjet-create" style={{ display: 'block', marginBottom: '5px' }}>Assigner à :</label>
+            <select id="userProjet-create" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}>
+              <option value="">Non assigné</option>
+              {usersList.map(user => (
+                <option key={user.id} value={user.id}>{user.name}</option>
+              ))}
+            </select>
+          </div>)}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
           <button type="submit" disabled={isLoading} style={{ padding: '10px 15px' }}>
             {isLoading ? 'Création...' : 'Créer le projet'}

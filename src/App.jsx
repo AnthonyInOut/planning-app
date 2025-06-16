@@ -17,6 +17,7 @@ import moment from 'moment';
 // Locale setting moved to main.jsx
 import { shadeColor, findAvailableShade } from './utils/colorUtils'; // Importer findAvailableShade
 import { getSpecialDaysDataForRange } from './utils/holidays'; // Assurez-vous que ce chemin est correct
+import { INTERVENTION_ETATS, ETAT_STYLES, ETAT_CATEGORIES, ETATS_PAR_CATEGORIE, getHachuresStyle } from './utils/interventionStates'; // Importer les états et la fonction pour les hachures
 
 function App() {
   const [projets, setProjets] = useState([]);
@@ -25,7 +26,7 @@ function App() {
   const [isCreating, setIsCreating] = useState(false);
   const [refreshFlag, setRefreshFlag] = useState(false);
   const [refreshCalendar, setRefreshCalendar] = useState(false);
-  const [viewMode, setViewMode] = useState('3months');
+  const [viewMode, setViewMode] = useState('3months'); // Les valeurs seront '3months', '6months', '12months'
 
   const [isCreateProjetModalOpen, setIsCreateProjetModalOpen] = useState(false);
   const [isCreateLotModalOpen, setIsCreateLotModalOpen] = useState(false);
@@ -53,6 +54,8 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null); // Stockera l'objet utilisateur complet
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [showLegend, setShowLegend] = useState(false); // État pour la légende
+  const [showCurrentDayIndicator, setShowCurrentDayIndicator] = useState(true); // Nouvel état pour l'indicateur du jour actuel
 
   // État pour la date de début de la vue de la grille (pour ThreeMonthGrid)
   const [currentGridStartDate, setCurrentGridStartDate] = useState(moment().startOf('month'));
@@ -69,7 +72,7 @@ function App() {
   const fetchProjets = async () => {
     let query = supabase
       .from('projets')
-      .select('id, nom, color, lots(id, nom, projet_id, color, display_order, entreprise_id)')
+      .select('id, nom, color, user_id, lots(id, nom, projet_id, color, display_order, entreprise_id)') // <-- Ajout de user_id ici
       .order('id', { ascending: true })
       .order('display_order', { foreignTable: 'lots', ascending: true });
 
@@ -196,7 +199,7 @@ function App() {
     setIsLoadingData(true);
 
     const interventionsPromise = supabase.from('interventions').select(`
-      id, nom, lot_id, date, date_fin, heure_debut, heure_fin,
+      id, nom, lot_id, date, date_fin, heure_debut, heure_fin, etat, visible_sur_planning,
       lots (id, nom, projet_id, color)
     `);
 
@@ -207,7 +210,36 @@ function App() {
       console.error('Erreur fetch interventions:', interventionsError);
       setInterventions([]);
     } else {
-      setInterventions(interventionsData || []);
+      let fetchedInterventions = interventionsData || [];
+      const today = moment().format('YYYY-MM-DD');
+      const updatesToPerform = [];
+
+      fetchedInterventions.forEach(intervention => {
+        const styleInfo = ETAT_STYLES[intervention.etat];
+        if (styleInfo && styleInfo.needsDateUpdate && intervention.etat !== INTERVENTION_ETATS.TERMINE) {
+          const interventionDate = moment(intervention.date);
+          if (interventionDate.isBefore(today, 'day')) {
+            updatesToPerform.push(
+              supabase.from('interventions').update({ 
+                date: today, 
+                date_fin: intervention.date_fin ? moment(today).add(moment(intervention.date_fin).diff(moment(intervention.date), 'days'), 'days').format('YYYY-MM-DD') : today 
+              }).eq('id', intervention.id)
+            );
+            // Mettre à jour l'intervention localement pour un affichage immédiat
+            intervention.date = today;
+            intervention.date_fin = intervention.date_fin ? moment(today).add(moment(intervention.date_fin).diff(moment(intervention.date), 'days'), 'days').format('YYYY-MM-DD') : today;
+          }
+        }
+      });
+
+      if (updatesToPerform.length > 0) {
+        console.log(`[App.jsx] Mise à jour de ${updatesToPerform.length} interventions "A ne pas oublier"...`);
+        await Promise.all(updatesToPerform)
+          .then(() => console.log("[App.jsx] Interventions 'A ne pas oublier' mises à jour avec succès."))
+          .catch(err => console.error("[App.jsx] Erreur lors de la mise à jour des interventions 'A ne pas oublier':", err));
+        // Les interventions sont déjà mises à jour dans fetchedInterventions pour l'UI
+      }
+      setInterventions(fetchedInterventions);
     }
 
     // Appeler fetchLinks pour qu'il gère sa propre logique (y compris le fetch Supabase et la réconciliation)
@@ -247,8 +279,9 @@ function App() {
   useEffect(() => { // useEffect existant pour les jours spéciaux
     const fetchAllSpecialDays = async () => {
       setIsLoadingSpecialDays(true);
+      const numMonthsForView = viewMode === '6months' ? 6 : viewMode === '12months' ? 12 : 3;
       const viewStartDate = moment(currentGridStartDate).startOf('month');
-      const viewEndDate = moment(currentGridStartDate).add(2, 'months').endOf('month');
+      const viewEndDate = moment(currentGridStartDate).add(numMonthsForView - 1, 'months').endOf('month');
 
       try {
         const data = await getSpecialDaysDataForRange(viewStartDate, viewEndDate);
@@ -261,7 +294,7 @@ function App() {
       }
     };
     fetchAllSpecialDays();
-  }, [currentGridStartDate]);
+  }, [currentGridStartDate, viewMode]); // Ajout de viewMode comme dépendance
 
   // Effet pour mettre à jour les projets lorsque currentUser ou showAllProjects change
   useEffect(() => {
@@ -509,18 +542,14 @@ function App() {
     }
   };
 
-  const formattedEvents = useMemo(() =>
-    interventions.map(item => ({
-      id: item.id,
-      title: item.nom || 'Intervention',
-      start: new Date(`${item.date}T${item.heure_debut || '00:00:00'}`),
-      end: new Date(`${item.date_fin || item.date}T${item.heure_fin || '23:59:59'}`),
-      raw: item
-    })), [interventions]);
-
+  const numberOfMonthsForGrid = useMemo(() => {
+    if (viewMode === '6months') return 6;
+    if (viewMode === '12months') return 12;
+    return 3; // Par défaut pour '3months'
+  }, [viewMode]);
 
   return (
-    <div style={{ display: 'flex', height: '100vh' }}>
+    <div className="app-main-container" style={{ display: 'flex', height: '100vh' }}>
       <div className="print-hide" style={{
           width: '300px',
           minWidth: '300px',
@@ -683,7 +712,8 @@ function App() {
         <Modal isOpen={isCreateProjetModalOpen} onClose={() => setIsCreateProjetModalOpen(false)}>
           <h3 style={{ marginTop: 0 }}>Nouveau Projet</h3>
           <CreateProjet
-            userId={currentUser?.id} 
+            usersList={usersList} // Passer la liste des utilisateurs
+            currentUser={currentUser} // Passer l'utilisateur courant
             onAjout={() => {
               fetchProjets(); // fetchProjets sera filtré par currentUser si applicable
               setIsCreateProjetModalOpen(false);
@@ -782,7 +812,7 @@ function App() {
       )}
 
 
-      <div style={{ width: '75%', padding: '1rem', overflow: 'auto' }}>
+      <div className="grid-print-container" style={{ width: '75%', padding: '1rem', overflow: 'auto' }}>
         <div className="print-hide"> {/* Cacher cette section lors de l'impression */}
           <h2>Vue calendrier</h2>
 
@@ -791,46 +821,46 @@ function App() {
             onChange={(e) => setViewMode(e.target.value)}
             style={{ marginBottom: '1rem' }}
           >
-            <option value="day">Jour</option>
-            <option value="week">Semaine</option>
-            <option value="month">Mois</option>
             <option value="3months">Vue 3 Mois</option>
+            <option value="6months">Vue 6 Mois</option>
+            <option value="12months">Vue 1 An</option>
           </select>
+          <label style={{ marginLeft: '1rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showLegend} onChange={() => setShowLegend(!showLegend)} />
+            Afficher la légende
+          </label>
+          <label style={{ marginLeft: '1rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showCurrentDayIndicator} onChange={() => setShowCurrentDayIndicator(!showCurrentDayIndicator)} />
+            Afficher le jour actuel
+          </label>
         </div>
 
-        {viewMode === '3months' ? (
-          <ThreeMonthGrid
-            interventions={interventions}
-            links={links}
-            projets={projets}
-            expandedProjetsState={expandedProjets}
-            projectLotsVisibilityState={projectLotsExpandedInGrid}
-            onToggleProjectLotsVisibility={toggleProjectLotsInGrid}
-            expandedLotInterventionsState={expandedLotInterventionsInGrid}
-            onToggleLotInterventions={toggleLotInterventionsInGrid}
-            onEditIntervention={handleEditIntervention}
-            onAddIntervention={handleAddInterventionFromGrid}
-            onInterventionUpdated={handleInterventionUpdatedByGrid}
-            refetchLinks={fetchAllData} // Passer fetchAllData pour les liens
-            onEditProjet={handleOpenEditProjetModal}
-            onEditLot={handleOpenEditLotModal}
-            specialDaysData={specialDaysData}
-            isLoadingSpecialDays={isLoadingSpecialDays}
-            currentStartDate={currentGridStartDate}
-            onPreviousMonth={handlePreviousMonth}
-            onNextMonth={handleNextMonth}
-            isLoadingData={isLoadingData} // Passer l'état de chargement global
-          />
-        ) : (
-          <div className="print-hide"> {/* Cacher également les autres vues si elles ne sont pas la cible de l'impression */}
-            <CalendrierInterventions
-              projets={projets}
-              onSelectIntervention={handleEditIntervention}
-              viewMode={viewMode}
-              events={formattedEvents}
-            />
-          </div>
-        )}
+        <ThreeMonthGrid
+          interventions={interventions}
+          links={links}
+          projets={projets}
+          expandedProjetsState={expandedProjets}
+          projectLotsVisibilityState={projectLotsExpandedInGrid}
+          onToggleProjectLotsVisibility={toggleProjectLotsInGrid}
+          expandedLotInterventionsState={expandedLotInterventionsInGrid}
+          onToggleLotInterventions={toggleLotInterventionsInGrid}
+          onEditIntervention={handleEditIntervention}
+          onAddIntervention={handleAddInterventionFromGrid}
+          onInterventionUpdated={handleInterventionUpdatedByGrid}
+          refetchLinks={fetchAllData} // Passer fetchAllData pour les liens
+          onEditProjet={handleOpenEditProjetModal}
+          onEditLot={handleOpenEditLotModal}
+          specialDaysData={specialDaysData}
+          isLoadingSpecialDays={isLoadingSpecialDays}
+          currentStartDate={currentGridStartDate}
+          onPreviousMonth={handlePreviousMonth}
+          onNextMonth={handleNextMonth}
+          isLoadingData={isLoadingData} // Passer l'état de chargement global
+          showLegend={showLegend} // Passer l'état pour la légende
+          interventionEtats={{ INTERVENTION_ETATS, ETAT_STYLES, ETAT_CATEGORIES, ETATS_PAR_CATEGORIE, getHachuresStyle }} // Passer les définitions d'états et la fonction pour les hachures
+          showCurrentDayIndicator={showCurrentDayIndicator} // Passer le nouvel état
+          numberOfMonthsToDisplay={numberOfMonthsForGrid} // Passer le nombre de mois calculé
+        />
       </div>
     </div>
   );

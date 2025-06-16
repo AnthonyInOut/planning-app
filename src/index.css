@@ -66,3 +66,12 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+@media print {
+  body {
+    display: block !important; /* Permettre au contenu de s'écouler naturellement */
+    min-height: auto !important; /* Supprimer la contrainte de hauteur minimale */
+    overflow: visible !important; /* S'assurer que le contenu n'est pas coupé */
+    background-color: #ffffff !important; /* Fond blanc pour l'impression */
+  }
+}

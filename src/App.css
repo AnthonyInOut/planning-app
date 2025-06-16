@@ -50,3 +50,19 @@
 }
 */
 
+@media print {
+  #root {
+    max-width: none !important; /* Permettre la pleine largeur pour l'impression */
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Si #root est un conteneur flex/grid, le remettre en block pour l'impression */
+    /* display: block !important; */ 
+  }
+
+  .app-main-container { /* Classe ajoutée au div racine de App.jsx */
+    display: block !important; /* Surcharger display: flex pour l'impression */
+    height: auto !important; /* Permettre à la hauteur d'être déterminée par le contenu */
+    width: auto !important; /* Permettre à la largeur d'être déterminée par le contenu */
+    overflow: visible !important;
+  }
+}

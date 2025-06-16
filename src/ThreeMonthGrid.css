@@ -1,180 +1,470 @@
-/* wrapper */
+/* ===== STYLES GÉNÉRAUX ===== */
 .three-month-grid {
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  /* overflow-x et overflow-y sont maintenant gérés par le conteneur parent dans App.jsx */
+  position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
-/* container grid */
-.grid-container {
-  display: grid;
-  /* grid-template-columns défini inline en JSX */
-  grid-auto-rows: 24px;
+/* ===== STYLES DE TABLE ===== */
+.three-month-grid table {
+  border-collapse: collapse;
+  table-layout: auto;
+  width: 100%;
+  border: 2px solid #999999; /* Ajout d'un cadre autour du tableau */
+  background-color: white;
 }
 
-/* cellules génériques */
-.cell {
-  box-sizing: border-box;
+.three-month-grid th,
+.three-month-grid td {
   border: 1px solid #eee;
+  box-sizing: border-box;
+}
+
+/* ===== STYLES D'EN-TÊTE ===== */
+.three-month-grid thead th {
+  background-color: #f8f9fa;
+  font-weight: 400;
+  text-align: center;
+  padding: 8px 4px;
+  border-bottom: 2px solid #999999;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* En-tête des mois */
+.three-month-grid thead tr:first-child th {
+  font-size: 1.1em;
+  background-color: #e9ecef;
+  border-left: 1px solid #999999;
+  border-right: 1px solid #999999;
+  border-bottom: 1px solid #999999;
+}
+
+/* En-tête des semaines */
+.three-month-grid thead tr:nth-child(2) th {
+  font-size: 0.9em;
+  background-color: #f1f3f4;
+  border-left: 1px solid #999999;
+  border-right: 1px solid #999999;
+}
+
+/* En-tête des jours */
+.three-month-grid thead tr:last-child th {
+  font-size: 0.8em;
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  padding: 3px 0;
+  height: 28px;
+}
+
+/* Marquer la fin des mois */
+.three-month-grid thead th[data-month-end="true"] {
+  border-right: 2px solid #999999 !important;
+}
+
+/* Marquer la fin des semaines */
+.three-month-grid thead th[data-week-end="true"] {
+  border-right: 1px solid #adb5bd !important;
+}
+
+/* ===== JOURS FÉRIÉS ET VACANCES ===== */
+.three-month-grid th.holiday-vacation,
+.three-month-grid td.holiday-vacation {
+  background-color: #e2e1e1aa !important;
+  border-left-color: #ffffff !important;
+  border-right-color: #ffffff !important;
+}
+
+/* Marquer la fin des semaines dans les cellules de jour du corps du tableau */
+.three-month-grid td.day-cell-week-end,
+.three-month-grid th.day-cell-week-end {
+  border-right-color: #adb5bd !important; /* Doit être important pour surcharger .holiday-vacation si besoin */
+}
+
+/* ===== STYLES DES CELLULES DE NOMS ===== */
+.three-month-grid .project-name-cell {
+  background-color: #cccbcb;
+  border-left: 2px solid #999999; /* Ajout bordure gauche */
+  border-right: 2px solid #999999;
+  font-weight: bold;
+  padding: 3px 12px; /* Ajustement padding vertical */
+  white-space: nowrap;
+  vertical-align: middle; /* Changement pour alignement au milieu */
+  min-width: 200px;
+  max-width: 370px;
+  height: 28px; /* Hauteur fixe */
+  line-height: calc(28px - 2 * 3px); /* Centrage vertical du texte */
+}
+
+.three-month-grid .lot-name-cell {
+  background-color: #ebebeb;
+  border-left: 2px solid #999999; /* Épaisseur à 2px */
+  border-right: 2px solid #999999; /* Épaisseur à 2px */
+  padding: 3px 8px 3px 24px; /* Ajustement padding vertical */
+  font-style: italic;
+  font-weight: 500;
+  white-space: nowrap;
+  vertical-align: middle; /* Changement pour alignement au milieu */
+  min-width: 180px;
+  max-width: 330px;
+  height: 28px; /* Hauteur fixe */
+  line-height: calc(28px - 2 * 3px); /* Centrage vertical du texte */
+}
+/* Styles pour la cellule TD externe */
+.three-month-grid .intervention-name-cell-outer {
+  background-color: #ffffff;
+  border-right: 2px solid #999999; /* Épaisseur à 2px */
+  /* Le padding est maintenant sur le div interne */
+  padding: 0; 
+  vertical-align: middle;
+  height: 28px;
+  box-sizing: border-box;
+  min-width: 150px; /* Conserver la largeur minimale */
+  /* display: flex et align-items: center sont déplacés vers le div interne */
+}
+
+/* Styles pour le DIV interne qui gère le flexbox */
+.three-month-grid .intervention-name-cell-inner {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 10px;
+  height: 100%; /* Pour remplir la hauteur de la td parente */
+  padding: 3px 8px; /* Padding original de intervention-name-cell */
+  box-sizing: border-box;
   white-space: nowrap;
+  /* line-height n'est plus nécessaire ici car flex s'en occupe, 
+     mais peut être conservé si le contenu flex a plusieurs lignes 
+     et que l'alignement de la ligne de base du texte est important. */
+  /* line-height: calc(28px - 2 * 3px); */
+}
+
+/* ===== STYLES DES CELLULES DE JOUR ===== */
+.three-month-grid .day-cell-base {
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  height: 28px;
+  padding: 3px 2px;
+  /* Ajustement pour l'alignement vertical du contenu */
+  line-height: calc(28px - 2 * 3px); /* hauteur de cellule - padding vertical total (3px haut + 3px bas) */
+  border: 1px solid #eee;
+  box-sizing: border-box;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  background-color: white;
 }
 
-/* colonne de gauche */
-.left {
-  position: sticky;
-  left: 0;
-  background: #fafafa;
-  z-index: 5;
-  /* Largeur définie par grid-template-columns en JSX. */
-  /* Retirer les largeurs fixes ici permettrait à l'élément de s'adapter si la colonne grid le permet. */
-  width: auto;
-  min-width: auto;
-  border-right: 1px solid #ccc;
+.three-month-grid .project-day-cell {
+  background-color: #fafafa;
+  /* Les styles de bordure haute/basse sont gérés par tr.project-header-row > td */
 }
 
-/* en-têtes */
-.header {
-  background: #f1f1f1;
-  font-weight: bold;
-}
-.month { grid-row: 1; }
-.week  { grid-row: 2; }
-.day   { grid-row: 3; }
-
-.left.projet { grid-row: 4; }
-.left.lot    { grid-row: 5; }
-.left.intervention-label { grid-row: 6; }
-
-/* lignes vides */
-.empty {
-  background: #fff;
+.three-month-grid .lot-row-day-cell {
+  background-color: #fdfdfd;
+  /* Les styles de bordure haute/basse sont gérés par tr.lot-header-row > td */
 }
 
-/* Colonnes jours fériés / vacances */
-/* Test de spécificité : Assurez-vous que la classe .holiday-vacation est bien sur les ÉLÉMENTS CELLULES. */
-/* Ce sélecteur est plus spécifique. Si cela fonctionne, une autre règle surchargeait la version simple. */
-.grid-container .cell.holiday-vacation {
-  background: #c01a1a !important; /* Votre couleur rouge actuelle, avec !important pour forcer la priorité */
-  /* Si cela ne fonctionne TOUJOURS PAS, la classe .holiday-vacation n'est PROBABLEMENT PAS sur les éléments HTML, */
-  /* ou le fichier CSS n'est pas correctement chargé/appliqué. VÉRIFIEZ AVEC L'INSPECTEUR. */
+.three-month-grid .intervention-row-day-cell {
+  /* Les styles de bordure haute/basse sont gérés par tr.intervention-row > td */
 }
 
-/* intervention */
-.intervention {
-  color: #fff;
-  font-size: 9px;
-  cursor: move;
-  overflow: visible; /* Permet au texte de dépasser */
-  text-overflow: clip; /* S'assure que text-overflow n'agit pas */
-  position: relative;
-  z-index: 2;
+/* ===== STYLES DES LIGNES ===== */
+.three-month-grid tr.project-header-row > td,
+.three-month-grid tr.project-header-row > th {
+  border-top: 3px solid #999999;
+  border-bottom: 1px solid #999999;
 }
-/* ThreeMonthGrid.css ou votre fichier CSS global */
 
-/* Cacher les poignées de lien par défaut */
-.intervention-block-td .link-handle {
+.three-month-grid tr.lot-header-row > td,
+.three-month-grid tr.lot-header-row > th {
+  border-top: 2px solid #999999;
+  border-bottom: 1px solid #999999;
+}
+
+.three-month-grid tr.intervention-row > td {
+  border-top: 1px solid #e0e0e0;
+  /* Assure une bordure basse cohérente avec la bordure haute pour les cellules de cette ligne, */
+  /* et aide à éviter la perception de "double bordure" en clarifiant la bordure de la ligne d'intervention elle-même. */
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* 
+Styles pour le DIV interne qui représente visuellement le bloc d'intervention.
+Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
+*/
+.three-month-grid .intervention-block-base {
+  text-align: left;
+  border-radius: 4px; /* Vous pouvez réactiver ceci maintenant */
+  font-weight: 600;
+  font-size: 0.75em;
+  cursor: pointer;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  /* color: white; */ /* La couleur est gérée dynamiquement par style en ligne */
+  position: relative; /* Nécessaire pour les poignées absolues à l'intérieur */
+  overflow: visible; /* Permet au contenu (comme le texte) de déborder */
+  transition: all 0.2s ease;
+}
+
+/* Assurer que la cellule TD contenant le bloc d'intervention permet le dépassement */
+.three-month-grid td.intervention-block-container-td {
+  overflow: visible; /* Surcharge le 'overflow: hidden' de .day-cell-base */
+}
+
+
+.three-month-grid .intervention-block-base:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== POIGNÉES DE LIEN ===== */
+.three-month-grid .link-handle {
   visibility: hidden;
   opacity: 0;
-  transition: opacity 0.2s ease-in-out, visibility 0s linear 0.2s; /* Transition pour opacity, changement direct pour visibility */
-  pointer-events: none; /* Empêche l'interaction lorsque caché */
+  transition: all 0.2s ease;
+  pointer-events: none;
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background-color: #b6b6b6;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: crosshair;
+  z-index: 15;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
-/* Afficher les poignées au survol de la barre d'intervention parente */
-.intervention-block-td:hover .link-handle {
-  visibility: visible;
-  opacity: 1;
-  transition-delay: 0s; /* Annule le délai pour la transition de visibility */
-  pointer-events: auto; /* Permet l'interaction lorsque visible */
+.three-month-grid .link-handle-start {
+  left: -6px;
 }
 
-/* Classe à ajouter au conteneur de la grille lorsque isLinking est true */
-.grid-is-linking .intervention-block-td .link-handle {
+.three-month-grid .link-handle-end {
+  right: -6px;
+}
+
+.three-month-grid .intervention-block-base:hover .link-handle,
+.three-month-grid.grid-is-linking .link-handle {
   visibility: visible;
   opacity: 1;
-  transition-delay: 0s;
   pointer-events: auto;
 }
-   /* Visibilité contrôlée par JavaScript ou styles en ligne pour le moment */
 
-/* Tente de supprimer les en-têtes et pieds de page du navigateur */
-/* Cette règle doit être au niveau supérieur, pas dans @media print */
-@page {
-  margin: 0.5cm; /* Vous pouvez ajuster les marges de la page ici */
-  @top-left { content: none; }
-  @top-center { content: none; }
-  @top-right { content: none; }
-  @bottom-left { content: none; }
-  @bottom-center { content: none; }
-  @bottom-right { content: none; }
+/* ===== POIGNÉES DE REDIMENSIONNEMENT ===== */
+.three-month-grid .resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 12;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
 }
 
-  .print-title {
-    display: none; /* Caché par défaut en vue normale */
-    /* Styles pour l'impression seront dans @media print */
+.three-month-grid .resize-handle-left {
+  left: 0;
+}
+
+.three-month-grid .resize-handle-right {
+  right: 0;
+}
+
+.three-month-grid .intervention-block-base:hover .resize-handle {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ===== CELLULES DE REMPLISSAGE ===== */
+.three-month-grid .project-name-cell-empty-filler {
+  background-color: #e3f2fd;
+  /* Assurer une bordure droite cohérente pour la deuxième colonne */
+  border-right: 2px solid#999999; /* Épaisseur à 2px */
+}
+
+.three-month-grid .lot-name-cell-empty-filler {
+  background-color: #f3e5f5;
+  /* Assurer une bordure droite cohérente pour la deuxième colonne */
+  border-right: 2px solid#999999; /* Épaisseur à 2px */
+}
+
+.three-month-grid .no-intervention-cell {
+  font-style: italic;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  /* Assurer une bordure droite cohérente pour la deuxième colonne */
+  border-right: 2px solid #999999; /* Épaisseur à 2px */
+}
+
+/* ===== INDICATEUR DU JOUR ACTUEL ===== */
+.three-month-grid [data-testid="current-day-indicator"] {
+  border-left: 3px solid #ff4444;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0.8;
+}
+
+/* ===== STYLES D'IMPRESSION ===== */
+@page {
+  margin: 0.5cm;
+  size: A4 landscape;
+}
+
+.print-title {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  /* Styles d'impression */
-  @media print {
-    body * {
-      visibility: hidden !important; /* Cache tout par défaut */
-      -webkit-print-color-adjust: exact !important; /* Forcer l'impression des couleurs pour tout ce qui sera visible */
-      print-color-adjust: exact !important;
-    }
-  
-    .print-title {
-      display: block !important; /* Visible uniquement à l'impression */
-      visibility: visible !important;
-      text-align: center;
-      font-size: 1.5em; /* Taille de police plus grande pour le titre */
-      font-weight: bold;
-      margin-bottom: 15px; /* Espace en dessous du titre */
-    }
+  .print-title {
+    display: block !important;
+    visibility: visible !important;
+    text-align: center;
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-bottom: 15px;
+    page-break-inside: avoid;
+  }
 
-    .three-month-grid, .three-month-grid * {
-      visibility: visible !important; /* Rend visible la grille et son contenu */
-    }
-  
-    .three-month-grid {
-      position: absolute !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 100% !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      border: none !important;
-      box-shadow: none !important;
-      overflow: visible !important; /* S'assurer que rien n'est coupé */
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
+  .three-month-grid,
+  .three-month-grid * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 
-    .three-month-grid table,
-    .three-month-grid th,
-    .three-month-grid td,
-    .three-month-grid .intervention-block-td, /* Cible les cellules d'intervention */
-    .three-month-grid svg polygon { /* Cible les polygones des flèches SVG */
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-  
-    .print-hide, .print-hide * {
-      display: none !important; /* Cache les éléments non désirés à l'impression */
-      visibility: hidden !important;
-    }
+  .three-month-grid {
+    position: static !important;
+    /* width: 100% !important; */ /* Retiré pour permettre au tableau de prendre sa largeur naturelle */
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    /* page-break-inside: avoid; Retiré pour permettre au tableau de s'étendre sur plusieurs pages si nécessaire */
+  }
 
-    .three-month-grid > svg {
-      /* Forcer le SVG à s'aligner avec le tbody en mode impression */
-      /* 84px est une estimation de la hauteur du thead. Ajustez si nécessaire. */
-      /* Si les flèches sont toujours décalées, essayez d'ajuster cette valeur de 'top'. */
-      top: 138px !important; /* 84px (thead) + ~39px (titre) */
-      left: -20px !important; /* Ajusté à -20px selon votre confirmation */
-      width: calc(100% + 20px) !important; /* Ajuster la largeur pour compenser le left négatif */
-      height: calc(100% - 84px) !important; /* Occupe la hauteur du tbody */
-    }
-    }
+
+
+  /* Styles pour le conteneur immédiat de la grille dans App.jsx */
+  .grid-print-container {
+    width: auto !important; /* Laisser le conteneur prendre la largeur de son contenu */
+    overflow: visible !important; /* S'assurer que le contenu peut déborder pour l'impression */
+    padding: 0 !important; /* Supprimer le padding qui pourrait contraindre */
+  }
+
+  .three-month-grid table {
+    width: auto !important; /* Permettre au tableau de déterminer sa propre largeur */
+    min-width: max-content; /* Force le tableau à sa largeur de contenu minimale */
+    min-width: -moz-max-content; /* Firefox */
+    min-width: -webkit-max-content; /* Chrome/Safari */
+    page-break-inside: auto;
+    table-layout: auto; /* Important pour que min-width: max-content fonctionne bien */
+  }
+
+  .three-month-grid thead th {
+    position: static !important; /* Rendre les en-têtes non-sticky pour l'impression */
+    /* Les autres styles de thead th (background, border, etc.) sont conservés ou peuvent être ajustés ici si besoin */
+  }
+
+  .three-month-grid th,
+  .three-month-grid td {
+    overflow: visible !important; /* S'assurer que le contenu des cellules n'est pas coupé */
+    /* white-space: nowrap; */ /* Peut aider si les cellules coupent le texte, mais peut rendre les colonnes très larges */
+  }
+
+  .three-month-grid thead {
+    display: table-header-group;
+  }
+
+  .three-month-grid tbody tr {
+    page-break-inside: avoid;
+  }
+
+  .print-hide,
+  .print-hide * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .three-month-grid > svg {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .three-month-grid th,
+  .three-month-grid td {
+    border-color: #999999 !important;
+    font-size: 10px !important;
+  }
+
+  .three-month-grid .intervention-block-base {
+    font-size: 8px !important;
+    text-shadow: none !important; /* Supprimer l'ombre pour l'impression */
+    padding: 1px 3px !important;
+  }
+
+  .three-month-grid .link-handle,
+  .three-month-grid .resize-handle {
+    display: none !important;
+  }
+
+  .three-month-grid [data-testid="current-day-indicator"] {
+    display: none !important; /* Cacher l'indicateur du jour actuel à l'impression */
+  }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .three-month-grid {
+    font-size: 0.9em;
+  }
+  
+  .three-month-grid .project-name-cell,
+  .three-month-grid .lot-name-cell,
+  .three-month-grid .intervention-name-cell {
+    min-width: 120px;
+  }
+  
+  .three-month-grid thead th {
+    padding: 4px 2px;
+    font-size: 0.8em;
+  }
+}
+
+/* ===== ANIMATIONS ET TRANSITIONS ===== */
+.three-month-grid .intervention-block-base {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.three-month-grid .intervention-block-base:active {
+  transform: scale(0.98);
+}
+
+.three-month-grid .link-handle:hover {
+  background-color: #1976d2;
+  transform: translateY(-50%) scale(1.2);
+}
+
+.three-month-grid .resize-handle:hover {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+/* ===== ÉTATS DE FOCUS ET ACCESSIBILITÉ ===== */
+.three-month-grid .intervention-block-base:focus {
+  outline: 2px solid #2196f3;
+  outline-offset: 2px;
+}
+
+.three-month-grid .project-name-cell span:focus,
+.three-month-grid .lot-name-cell span:focus,
+.three-month-grid .intervention-name-cell span:focus {
+  outline: 2px solid #2196f3;
+  outline-offset: 1px;
+  border-radius: 2px;
+}

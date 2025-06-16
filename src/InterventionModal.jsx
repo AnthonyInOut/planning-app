@@ -1,5 +1,6 @@
 // src/InterventionForm.jsx
 import { useState, useEffect } from 'react';
+import { INTERVENTION_ETATS, ETAT_CATEGORIES, ETATS_PAR_CATEGORIE } from './utils/interventionStates'; // Importer les états
 import { supabase } from './lib/supabaseClient';
 
 const InterventionForm = ({
@@ -17,6 +18,8 @@ const InterventionForm = ({
   const [heureDebutIntervention, setHeureDebutIntervention] = useState('');
   const [heureFinIntervention, setHeureFinIntervention] = useState('');
   const [lotIdIntervention, setLotIdIntervention] = useState('');
+  const [etatIntervention, setEtatIntervention] = useState(''); // Nouvel état pour l'état de l'intervention
+  const [visibleSurPlanning, setVisibleSurPlanning] = useState(true); // Nouvel état pour la visibilité
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingConfirmation, setIsDeletingConfirmation] = useState(false);
 
@@ -37,6 +40,8 @@ const InterventionForm = ({
       setHeureDebutIntervention(interventionData?.heure_debut || '08:00');
       setHeureFinIntervention(interventionData?.heure_fin || '17:00');
       setLotIdIntervention(currentLotId ? String(currentLotId) : '');
+      setEtatIntervention(INTERVENTION_ETATS.DEMANDE_DEVIS); // État par défaut pour la création
+      setVisibleSurPlanning(true); // Par défaut visible à la création
       console.log('[InterventionForm useEffect] Mode création - lotIdIntervention défini à:', currentLotId ? String(currentLotId) : '');
       setIsDeletingConfirmation(false);
     } else if (interventionData) {
@@ -46,6 +51,8 @@ const InterventionForm = ({
       setHeureDebutIntervention(interventionData.heure_debut || '');
       setHeureFinIntervention(interventionData.heure_fin || '');
       setLotIdIntervention(interventionData.lot_id ? String(interventionData.lot_id) : '');
+      setEtatIntervention(interventionData.etat || INTERVENTION_ETATS.DEMANDE_DEVIS); // Charger l'état existant ou un défaut
+      setVisibleSurPlanning(interventionData.visible_sur_planning !== undefined ? interventionData.visible_sur_planning : true);
       console.log('[InterventionForm useEffect] Mode édition - lotIdIntervention défini à:', interventionData.lot_id ? String(interventionData.lot_id) : '');
       setIsDeletingConfirmation(false);
     }
@@ -62,7 +69,9 @@ const InterventionForm = ({
       heure_debut: heureDebutIntervention,
       heure_fin: heureFinIntervention,
       date_fin: dateFinIntervention || dateIntervention,
-      lot_id: lotIdIntervention ? parseInt(lotIdIntervention, 10) : null
+      lot_id: lotIdIntervention ? parseInt(lotIdIntervention, 10) : null,
+      etat: etatIntervention, // Ajouter l'état au payload
+      visible_sur_planning: visibleSurPlanning // Ajouter la visibilité au payload
     };
 
     const { error } = isCreating
@@ -133,6 +142,40 @@ const InterventionForm = ({
               </option>
             ))}
           </select>
+        </div>
+
+        <div style={{ marginBottom: '10px' }}>
+          <label htmlFor="intervention-etat" style={{ display: 'block', marginBottom: '5px' }}>État :</label>
+          <select
+            id="intervention-etat"
+            value={etatIntervention}
+            onChange={(e) => setEtatIntervention(e.target.value)}
+            required
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            disabled={isSaving}
+          >
+            {Object.values(ETAT_CATEGORIES).map(category => (
+              <optgroup label={category} key={category}>
+                {ETATS_PAR_CATEGORIE[category].map(etatValue => (
+                  <option key={etatValue} value={etatValue}>{etatValue}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: '10px' }}>
+          <label htmlFor="intervention-visible" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              id="intervention-visible"
+              checked={visibleSurPlanning}
+              onChange={(e) => setVisibleSurPlanning(e.target.checked)}
+              style={{ marginRight: '8px' }}
+              disabled={isSaving}
+            />
+            Visible sur le planning
+          </label>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
