@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabaseClient'; // Si vous interagissez avec Supabase pour les configs
 
 const GestionSynthesesModal = ({ isOpen, onClose, usersList, currentUser }) => {
+  console.log('[GestionSynthesesModal.jsx] Rendu du composant. Props isOpen:', isOpen);
   // --- États pour la configuration d'un envoi automatique ---
   const [nomConfiguration, setNomConfiguration] = useState('');
   const [joursEnvoi, setJoursEnvoi] = useState({ lun: false, mar: false, mer: false, jeu: false, ven: false, sam: false, dim: false });
@@ -149,10 +150,46 @@ const GestionSynthesesModal = ({ isOpen, onClose, usersList, currentUser }) => {
   };
 
   const handleEnvoyerSyntheseManuelle = async () => {
-    // TODO: Logique pour déclencher l'envoi manuel
-    // Pourrait ouvrir une autre petite modale pour choisir les destinataires de cet envoi ponctuel
-    // Puis appeler une fonction Supabase.
-    alert('Envoi manuel de la synthèse (simulation).');
+    // Pour l'envoi manuel, envoyons à l'utilisateur actuellement connecté
+    if (!currentUser || !currentUser.id || !currentUser.email) {
+      setMessage("Veuillez être connecté et avoir un email renseigné pour l'envoi manuel.");
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage('Génération et envoi de la synthèse en cours...');
+
+    // Utiliser les paramètres de contenu actuellement dans le formulaire pour l'envoi manuel
+    const configContenuActuelle = {
+      contenu_interventions_semaine_prochaine: inclureInterventionsSemaineProchaine,
+      contenu_delai_alerte_devis_demande_jours: delaiAlerteDevisDemande,
+      contenu_delai_alerte_devis_attente_validation_jours: delaiAlerteDevisAttenteValidation,
+      contenu_delai_alerte_intervention_proche_jours: delaiAlerteInterventionProche,
+      contenu_delai_alerte_validation_artisan_jours: delaiAlerteValidationArtisan,
+      contenu_interventions_a_ne_pas_oublier: inclureInterventionsANePasOublier,
+    };
+
+    try {
+      // Appeler la fonction serverless déployée
+      // Assurez-vous que l'URL '/api/send-synthesis' correspond à l'emplacement de votre fonction serverless.
+      // Si vous déployez sur Netlify, ce sera quelque chose comme '/.netlify/functions/send-synthesis'
+      const response = await fetch('/api/send-synthesis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUser.id, config_contenu: configContenuActuelle }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || `Erreur HTTP ${response.status}`);
+      }
+
+      setMessage(result.message || 'Synthèse envoyée avec succès !');
+    } catch (error) {
+      console.error("Erreur lors de l'envoi manuel:", error);
+      setMessage(`Erreur: ${error.message || 'Une erreur est survenue.'}`);
+    }
+    setIsLoading(false);
   };
 
   const handleDeleteConfiguration = async (configId) => {
@@ -175,7 +212,10 @@ const GestionSynthesesModal = ({ isOpen, onClose, usersList, currentUser }) => {
     { key: 'dim', label: 'Dimanche' }
   ];
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    // Le log initial couvre déjà ce cas si le composant est appelé avec isOpen=false
+    return null;
+  }
 
   return (
     <div style={{ padding: '20px', maxHeight: '80vh', overflowY: 'auto', width: '600px' }}>

@@ -364,6 +364,7 @@ function App() {
   };
 
   const handleOpenGestionSynthesesModal = () => { // NOUVEAU: Handler pour la modale de synthèse
+    console.log('[App.jsx] handleOpenGestionSynthesesModal appelé. isGestionSynthesesModalOpen sera true.');
     setIsGestionSynthesesModalOpen(true);
   };
 
@@ -908,9 +909,11 @@ function App() {
       )}
 
       {/* NOUVEAU: Modale de Gestion des Synthèses */}
+      {console.log('[App.jsx] Vérification pour rendre GestionSynthesesModal. isGestionSynthesesModalOpen:', isGestionSynthesesModalOpen)}
       {isGestionSynthesesModalOpen && (
         <Modal isOpen={isGestionSynthesesModalOpen} onClose={() => setIsGestionSynthesesModalOpen(false)}>
           <GestionSynthesesModal
+            isOpen={isGestionSynthesesModalOpen} // <--- AJOUTER CETTE LIGNE
             usersList={usersList} // Passer la liste des utilisateurs pour la sélection des destinataires
             currentUser={currentUser} // L'utilisateur actuel pourrait être un destinataire par défaut
             onClose={() => setIsGestionSynthesesModalOpen(false)}

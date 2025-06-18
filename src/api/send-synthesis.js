@@ -1,15 +1,24 @@
 // api/send-synthesis.js (ou netlify/functions/send-synthesis.js)
 const { createClient } = require('@supabase/supabase-js');
 const moment = require('moment'); // Utiliser moment de npm
-const { Resend } = require('resend'); // Exemple avec Resend
+const nodemailer = require('nodemailer'); // Remplacer Resend par Nodemailer
 
 // Initialiser les clients Supabase et Resend
 // Les URL et clés seront lues depuis les variables d'environnement de votre plateforme serverless
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL; // Utiliser SUPABASE_URL côté serveur
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Clé de service pour les droits élevés
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-const resend = new Resend(process.env.RESEND_API_KEY); // Clé API Resend
+// Configuration du transporteur Nodemailer pour Brevo (SMTP)
+const transporter = nodemailer.createTransport({
+  host: process.env.BREVO_SMTP_HOST,
+  port: process.env.BREVO_SMTP_PORT || 587,
+  secure: (process.env.BREVO_SMTP_PORT === '465'),
+  auth: {
+    user: process.env.BREVO_SMTP_LOGIN,
+    pass: process.env.BREVO_SMTP_KEY,
+  },
+});
 
 // États (assurez-vous qu'ils correspondent à ceux de votre frontend)
 const ETAT_DEVIS_DEMANDE = "Demande de devis";
@@ -180,20 +189,28 @@ module.exports = async (req, res) => {
         </html>
       `;
 
-      // Exemple d'envoi avec Resend
-      const { data: emailData, error: emailError } = await resend.emails.send({
-        from: 'Votre Planning <noreply@votre-domaine.com>', // Remplacez par votre email vérifié
-        to: [userData.email], // Le destinataire
+      // Envoi avec Nodemailer (Brevo)
+      const emailInfo = await transporter.sendMail({
+        from: '"Votre Planning App" <planning.inout@gmail.com>', // REMPLACEZ par VOTRE adresse unique vérifiée
+        to: userData.email,
+        replyTo: userData.email, // Optionnel: Permet à l'utilisateur de répondre à lui-même ou à l'email pertinent
         subject: emailSubject,
-        html: emailBody,
+        html: `
+          <html>
+          <body>
+            <p>Bonjour ${userData.name || 'Utilisateur'},</p>
+            <h1>Synthèse de Planning</h1>
+            ${syntheseHtml}
+            <p>Cet email vous a été envoyé par Votre Planning App.</p>
+            <p>Ceci est un email automatique.</p>
+          </body>
+          </html>
+        `,
       });
-
-      if (emailError) {
-        console.error("Erreur d'envoi du mail:", emailError);
-        return res.status(500).json({ error: `Erreur d'envoi du mail: ${emailError.message}` });
-      }
-
-      console.log(`Synthèse envoyée avec succès à ${userData.email}`, emailData);
+      // Nodemailer ne retourne pas d'erreur ici si l'envoi est accepté par le serveur SMTP,
+      // mais lève une exception en cas d'échec de connexion/authentification.
+      // Les erreurs de délivrabilité sont gérées par Brevo (bounces, etc.).
+      console.log(`Synthèse envoyée avec succès à ${userData.email}`, emailInfo.messageId);
       return res.status(200).json({ message: `Synthèse envoyée avec succès à ${userData.email}` });
 
     } catch (error) {
