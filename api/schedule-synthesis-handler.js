@@ -1,4 +1,4 @@
-const// api/schedule-synthesis-handler.js (ou netlify/functions/schedule-synthesis-handler.js)
+// api/schedule-synthesis-handler.js (ou netlify/functions/schedule-synthesis-handler.js)
 const { createClient } = require('@supabase/supabase-js');
 const moment = require('moment');
 const nodemailer = require('nodemailer');
