@@ -7,7 +7,7 @@ import { generateProjectColors, generateInterventionColors } from './utils/color
 import { isPublicHoliday, isSchoolVacationZoneB } from './utils/holidays';
 import { supabase } from './lib/supabaseClient';
 import Modal from './Modal';
-import Legend from './Legend';
+import Legend from './Legend'; // Assurez-vous que ce composant est utilisé ou retirez l'import
 import { useInterventionLinking } from './hooks/useInterventionLinking';
 
 export default function ThreeMonthGrid({
@@ -34,7 +34,9 @@ export default function ThreeMonthGrid({
   isLoadingData,
   showLegend,
   showCurrentDayIndicator,
-  numberOfMonthsToDisplay = 3 // Ajout d'une nouvelle prop pour le nombre de mois
+  numberOfMonthsToDisplay = 3, // Ajout d'une nouvelle prop pour le nombre de mois
+  entreprisesList, // Nouvelle prop pour la liste des entreprises
+  projetsForConflictCheck // Nouvelle prop pour la détection de conflit
 }) {
   const svgDrawingLayerRef = useRef(null);
   const [currentDayIndicatorStyle, setCurrentDayIndicatorStyle] = useState(null);
@@ -94,6 +96,103 @@ export default function ThreeMonthGrid({
   } = useInterventionLinking({
     interventions, links, refetchLinks, svgDrawingLayerRef, tableRef, dayCellStyle, isLoadingData
   });
+
+  // Définir les états actifs pour la planification
+  // INTERVENTION_ETATS est maintenant correctement extrait de la prop interventionEtats
+  const { INTERVENTION_ETATS } = interventionEtats; 
+  const ACTIVE_PLANNING_ETATS = [
+    INTERVENTION_ETATS.PREVISION_INTERVENTION,
+    INTERVENTION_ETATS.INTERVENTION_VALIDEE_ARTISAN,
+    INTERVENTION_ETATS.OK_MATERIAUX,
+  ];
+
+  const checkCompanyConflictForMultiple = useCallback((interventionsToCheck) => {
+    // interventionsToCheck est un tableau d'objets { id, date, date_fin, lot_id }
+    let globalWarning = '';
+    const uniqueWarnings = new Set();
+
+    console.log('[checkCompanyConflictForMultiple] Début. Interventions à vérifier:', interventionsToCheck.length);
+    if (!entreprisesList || entreprisesList.length === 0) {
+      console.warn('[checkCompanyConflictForMultiple] entreprisesList est vide ou non définie.');
+      return '';
+    }
+    if (!projetsForConflictCheck || projetsForConflictCheck.length === 0) {
+      console.warn('[checkCompanyConflictForMultiple] projetsForConflictCheck (liste globale des projets) est vide ou non définie. Impossible de vérifier les conflits correctement.');
+      return ''; // Ne pas continuer si la liste globale des projets n'est pas disponible
+    }
+    
+    for (const iv of interventionsToCheck) {
+      // Assurer que l'intervention en cours de modification est dans un état pertinent
+      // iv.etat devrait provenir de findInterventionById(u.id).etat
+      if (!iv.etat || !ACTIVE_PLANNING_ETATS.includes(iv.etat)) {
+        console.log(`[checkCompanyConflictForMultiple] Intervention ID ${iv.id} (état: ${iv.etat}) n'est pas dans un état de planification active, conflit ignoré pour celle-ci.`);
+        continue;
+      }
+
+      const selectedLot = projetsForConflictCheck.flatMap(p => p.lots || []).find(l => l.id === iv.lot_id);
+      console.log(`[checkCompanyConflictForMultiple] Vérification pour intervention ID ${iv.id} (Lot ID: ${iv.lot_id}, État: ${iv.etat}). Lot trouvé:`, selectedLot);
+      if (!selectedLot || !selectedLot.entreprise_id) { // Vérifie entreprise_id directement sur le lot
+        console.log(`[checkCompanyConflictForMultiple] Lot non trouvé ou entreprise_id manquant pour lot ID ${iv.lot_id}.`);
+        continue;
+      }
+
+      const currentEntrepriseId = selectedLot.entreprise_id;
+      const currentEntreprise = entreprisesList.find(e => e.id === currentEntrepriseId);
+      const currentEntrepriseName = currentEntreprise ? currentEntreprise.nom : `ID ${currentEntrepriseId}`;
+      const currentStart = moment(iv.date);
+      const currentEnd = moment(iv.date_fin);
+
+      console.log(`[checkCompanyConflictForMultiple] Intervention ID ${iv.id} - Entreprise: ${currentEntrepriseName} (ID: ${currentEntrepriseId}), Dates: ${currentStart.format('L')} - ${currentEnd.format('L')}`);
+
+      for (const otherIntervention of interventions) { // Comparer avec toutes les interventions existantes
+        if (otherIntervention.id === iv.id) continue; // Ne pas comparer avec la version "avant modif" de soi-même
+        console.log(`[checkCompanyConflictForMultiple] Loop: Comparing iv ID ${iv.id} with otherIntervention ID ${otherIntervention.id} (Nom: ${otherIntervention.nom}, Etat: ${otherIntervention.etat})`);
+
+        // Vérifier si l'autre intervention est dans un état de planification active
+        if (!ACTIVE_PLANNING_ETATS.includes(otherIntervention.etat)) {
+          console.log(`[checkCompanyConflictForMultiple] Skipping otherIntervention ID ${otherIntervention.id}: Etat '${otherIntervention.etat}' not in ACTIVE_PLANNING_ETATS.`);
+          continue;
+        }
+
+        const otherLot = projetsForConflictCheck.flatMap(p => p.lots || []).find(l => l.id === otherIntervention.lot_id);
+        if (!otherLot) {
+          console.log(`[checkCompanyConflictForMultiple] Skipping otherIntervention ID ${otherIntervention.id}: otherLot not found (lot_id: ${otherIntervention.lot_id}).`);
+          continue;
+        }
+
+        // Ne signaler un conflit que si l'entreprise est la même ET les projets sont différents
+        if (!otherLot || otherLot.entreprise_id !== currentEntrepriseId || selectedLot.projet_id === otherLot.projet_id) {
+          // Log pour détailler pourquoi on continue
+          if (!otherLot) { // Devrait être attrapé par le if précédent, mais pour être sûr
+             console.log(`[checkCompanyConflictForMultiple] Skipping otherIntervention ID ${otherIntervention.id}: otherLot is unexpectedly null/undefined here.`);
+          } else if (otherLot.entreprise_id !== currentEntrepriseId) {
+            console.log(`[checkCompanyConflictForMultiple] Skipping otherIntervention ID ${otherIntervention.id} (Lot: ${otherLot.nom}): Different company (Current EID: ${currentEntrepriseId}, Other EID: ${otherLot.entreprise_id}).`);
+          } else if (selectedLot.projet_id === otherLot.projet_id) {
+            console.log(`[checkCompanyConflictForMultiple] Skipping otherIntervention ID ${otherIntervention.id} (Lot: ${otherLot.nom}): Same project (Projet ID: ${selectedLot.projet_id}).`);
+          } else {
+            // Ce cas ne devrait pas être atteint si la condition principale est vraie, mais utile pour le débogage de la condition elle-même.
+             console.log(`[checkCompanyConflictForMultiple] Skipping otherIntervention ID ${otherIntervention.id} (Lot: ${otherLot.nom}): Condition complexe remplie (otherLot.entreprise_id: ${otherLot.entreprise_id}, currentEntrepriseId: ${currentEntrepriseId}, selectedLot.projet_id: ${selectedLot.projet_id}, otherLot.projet_id: ${otherLot.projet_id})`);
+          }
+          continue;
+        }
+
+        const otherStart = moment(otherIntervention.date);
+        const otherEnd = moment(otherIntervention.date_fin || otherIntervention.date);
+        const datesOverlap = currentStart.isSameOrBefore(otherEnd) && currentEnd.isSameOrAfter(otherStart);
+        console.log(`[checkCompanyConflictForMultiple] PASSED FILTERS, CHECKING DATES: iv ID ${iv.id} (Projet ${selectedLot.projet_id}) vs other ID ${otherIntervention.id} (Projet ${otherLot.projet_id}, Entreprise ${otherLot.entreprise_id}). Dates Overlap: ${datesOverlap}`);
+
+        if (datesOverlap) {
+          const projetOfOtherLot = projetsForConflictCheck.find(p => p.id === otherLot.projet_id);
+          uniqueWarnings.add(`L'entreprise "${currentEntrepriseName}" est déjà sur le chantier "${projetOfOtherLot?.nom || 'N/A'}" (Lot: ${otherLot.nom}, Intervention: "${otherIntervention.nom || 'Intervention'}") du ${otherStart.format('DD/MM')} au ${otherEnd.format('DD/MM')}. Cela chevauche l'intervention "${iv.nom || 'Intervention modifiée'}" (Lot: ${selectedLot.nom}).`);
+        }
+      }
+    }
+    if (uniqueWarnings.size > 0) {
+      globalWarning = "Conflits d'entreprise détectés :\n- " + Array.from(uniqueWarnings).join('\n- ');
+      console.log('[checkCompanyConflictForMultiple] Conflits détectés:', globalWarning);
+    }
+    return globalWarning;
+  }, [interventions, projetsForConflictCheck, entreprisesList, ACTIVE_PLANNING_ETATS, INTERVENTION_ETATS]); // 'projets' (filtré) retiré des dépendances ici
 
   const projectDayCellStyle = {
     ...dayCellStyle,
@@ -312,14 +411,10 @@ export default function ThreeMonthGrid({
     const newDebForDraggedStr = newDebMomentForDragged.format('YYYY-MM-DD');
     const newFinForDraggedStr = newFinMomentForDragged.format('YYYY-MM-DD');
 
-    console.log(`[handleDrop] Vérification des dates. Original Start: ${originalStartMomentForDragged.format('YYYY-MM-DD')}, Original End: ${originalEndMomentForDragged.format('YYYY-MM-DD')}`);
-    console.log(`[handleDrop] Vérification des dates. Calculated New Start: ${newDebForDraggedStr}, Calculated New End: ${newFinForDraggedStr}`);
 
     if (newDebForDraggedStr === originalStartMomentForDragged.format('YYYY-MM-DD') && newFinForDraggedStr === originalEndMomentForDragged.format('YYYY-MM-DD')) {
-        console.log('[handleDrop] Intervention glissée: les dates (jours ouvrés) N\'ONT PAS CHANGÉ. Aucune mise à jour ou cascade nécessaire.');
         return;
     }
-    console.log('[handleDrop] Intervention glissée: les dates (jours ouvrés) ONT CHANGÉ. Procède à la mise à jour.');
 
     const updatesToPerform = [];
     const processedIds = new Set();
@@ -387,9 +482,19 @@ export default function ThreeMonthGrid({
         }
     }
 
-    console.log('[handleDrop] Toutes les mises à jour à effectuer en cascade:', updatesToPerform);
 
     if (updatesToPerform.length > 0) {
+      // Vérifier les conflits pour toutes les interventions qui vont être mises à jour
+      const conflictWarning = checkCompanyConflictForMultiple(updatesToPerform.map(u => ({
+        ...findInterventionById(u.id), // pour avoir le nom, lot_id original
+        ...u // pour avoir les nouvelles dates
+      })));
+      if (conflictWarning) {
+        if (!window.confirm(`${conflictWarning}\n\nVoulez-vous continuer la sauvegarde quand même ?`)) {
+          return; // Annuler la sauvegarde
+        }
+      }
+
         const updatePromises = updatesToPerform.map(u =>
             supabase.from('interventions').update({ date: u.date, date_fin: u.date_fin }).eq('id', u.id)
         );
@@ -398,7 +503,6 @@ export default function ThreeMonthGrid({
             results.forEach((result, index) => {
                 if (result.error) console.error(`[handleDrop Cascade] Erreur MàJ intervention ${updatesToPerform[index].id}:`, result.error);
             });
-            console.log('[handleDrop] Toutes les interventions en cascade ont été (tentées) mises à jour.');
         } catch (error) {
             console.error('[handleDrop] Erreur lors de la mise à jour en batch des interventions en cascade:', error);
         }
@@ -515,7 +619,6 @@ export default function ThreeMonthGrid({
       const newDbEnd = newDbEndMoment.format('YYYY-MM-DD');
 
       if (newDbStart !== originalResizedStartMoment.format('YYYY-MM-DD') || newDbEnd !== originalResizedEndMoment.format('YYYY-MM-DD')) {
-        console.log(`[ResizeMouseUp] Intervention redimensionnée ${resizedInterventionId}: ${originalResizedStartMoment.format('YYYY-MM-DD')}-${originalResizedEndMoment.format('YYYY-MM-DD')} -> ${newDbStart}-${newDbEnd}`);
 
         const updatesToPerform = [];
         const processedIds = new Set();
@@ -592,12 +695,19 @@ export default function ThreeMonthGrid({
                 queue.push(targetId);
             }
         }
-        console.log('[ResizeMouseUp] Mises à jour en cascade à effectuer:', updatesToPerform);
         if (updatesToPerform.length > 0) {
+            const conflictWarning = checkCompanyConflictForMultiple(updatesToPerform.map(u => ({
+                ...findInterventionById(u.id),
+                ...u
+            })));
+            if (conflictWarning) {
+                if (!window.confirm(`${conflictWarning}\n\nVoulez-vous continuer la sauvegarde quand même ?`)) {
+                    return; // Annuler la sauvegarde
+                }
+            }
              const updatePromises = updatesToPerform.map(u => supabase.from('interventions').update({ date: u.date, date_fin: u.date_fin }).eq('id', u.id));
              try {
                 await Promise.all(updatePromises);
-                console.log('[ResizeCascade] Toutes les interventions en cascade ont été mises à jour.');
              } catch (err) {
                 console.error("[ResizeCascade] Erreur lors de la mise à jour en batch :", err);
              }
@@ -605,7 +715,6 @@ export default function ThreeMonthGrid({
         if (onInterventionUpdated) onInterventionUpdated();
 
       } else {
-         console.log('[ResizeMouseUp] Les dates (ajustées pour jours ouvrés) n\'ont pas changé.');
       }
     } else {
       console.warn('[ResizeMouseUp] No data-date found for target.');
@@ -617,19 +726,12 @@ export default function ThreeMonthGrid({
     }
     setResizePreviewSpan(null);
     setResizingInfo(null);
-  }, [isResizing, resizingInfo, onInterventionUpdated, handleResizeMouseMove, resizePreviewSpan, tableRef, resizingCellRef, links, findInterventionById, calculateBusinessDaysDuration, addBusinessDays]);
+  }, [isResizing, resizingInfo, onInterventionUpdated, handleResizeMouseMove, resizePreviewSpan, tableRef, resizingCellRef, links, findInterventionById, calculateBusinessDaysDuration, addBusinessDays, checkCompanyConflictForMultiple]);
 
   useLayoutEffect(() => {
     if (tableRef.current && theadRef.current) {
       const theadHeight = theadRef.current.offsetHeight;
-      console.log('[SVG Layout] theadRef.current.offsetHeight:', theadHeight);
-
-      console.log('[SVG Layout] tableRef.current.offsetTop:', tableRef.current.offsetTop);
-      console.log('[SVG Layout] tableRef.current.offsetLeft:', tableRef.current.offsetLeft);
-      console.log('[SVG Layout] tableRef.current.offsetWidth:', tableRef.current.offsetWidth);
-      console.log('[SVG Layout] tableRef.current.offsetHeight:', tableRef.current.offsetHeight);
       const tableRectForLayout = tableRef.current.getBoundingClientRect();
-      console.log('[SVG Layout] tableRef.current.getBoundingClientRect():', { top: tableRectForLayout.top, left: tableRectForLayout.left, width: tableRectForLayout.width, height: tableRectForLayout.height });
       const newPosition = {
         top: tableRef.current.offsetTop + theadHeight,
         left: tableRef.current.offsetLeft,
@@ -644,7 +746,6 @@ export default function ThreeMonthGrid({
         return;
       }
 
-      console.log('[SVG Layout] Calculated newPosition for SVG overlay:', newPosition);
       if (
         newPosition.top !== svgOverlayPosition.top ||
         newPosition.left !== svgOverlayPosition.left ||
@@ -662,15 +763,11 @@ export default function ThreeMonthGrid({
       const expectedSvgHeight = tableRef.current.offsetHeight - theadRef.current.offsetHeight; 
 
       if (svgOverlayPosition.width === expectedSvgWidth && svgOverlayPosition.height === expectedSvgHeight && expectedSvgHeight > 0) {
-        console.log('[SVG Draw] Attempting to draw links. isLoadingData:', isLoadingData);
-        console.log('[SVG Draw] svgOverlayPosition used for drawing (MATCHES EXPECTED WITH OFFSET):', svgOverlayPosition);
         if (tableRef.current) {
           const tableRectForDraw = tableRef.current.getBoundingClientRect();
-          console.log('[SVG Draw] tableRef.current.getBoundingClientRect() at draw time:', { top: tableRectForDraw.top, left: tableRectForDraw.left, width: tableRectForDraw.width, height: tableRectForDraw.height });
         }
         if (svgDrawingLayerRef.current) {
           const svgActualRect = svgDrawingLayerRef.current.getBoundingClientRect();
-          console.log('[SVG Draw] svgDrawingLayerRef.current.getBoundingClientRect() at draw time:', { top: svgActualRect.top, left: svgActualRect.left, width: svgActualRect.width, height: svgActualRect.height });
         }
         queueMicrotask(drawPermanentLinks);
       } else if (expectedSvgHeight > 0) {

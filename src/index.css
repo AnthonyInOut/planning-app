@@ -69,9 +69,16 @@ button:focus-visible {
 
 @media print {
   body {
+    /* Reset body styles for printing */
     display: block !important; /* Permettre au contenu de s'écouler naturellement */
     min-height: auto !important; /* Supprimer la contrainte de hauteur minimale */
     overflow: visible !important; /* S'assurer que le contenu n'est pas coupé */
     background-color: #ffffff !important; /* Fond blanc pour l'impression */
+    width: auto !important;
+    height: auto !important;
+  }
+  html { /* Ensure html element also allows content to flow */
+    overflow: visible !important;
+    height: auto !important;
   }
 }

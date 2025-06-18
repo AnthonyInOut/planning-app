@@ -1,22 +1,5 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  /* padding: 2rem; */ /* Temporairement commenté pour tester */
-  text-align: center;
-}
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
+
 
 @keyframes logo-spin {
   from {
@@ -55,8 +38,8 @@
     max-width: none !important; /* Permettre la pleine largeur pour l'impression */
     margin: 0 !important;
     padding: 0 !important;
-    /* Si #root est un conteneur flex/grid, le remettre en block pour l'impression */
-    /* display: block !important; */ 
+    display: block !important; /* S'assurer qu'il n'est pas flex/grid */
+    overflow: visible !important;
   }
 
   .app-main-container { /* Classe ajoutée au div racine de App.jsx */
@@ -64,5 +47,34 @@
     height: auto !important; /* Permettre à la hauteur d'être déterminée par le contenu */
     width: auto !important; /* Permettre à la largeur d'être déterminée par le contenu */
     overflow: visible !important;
+    padding: 0 !important; /* Retirer le padding qui pourrait contraindre */
   }
+}
+
+
+/* Dans index.css ou un fichier CSS importé */
+.date-picker-full-width,
+.react-datepicker-wrapper,
+.react-datepicker__input-container,
+.react-datepicker__input-container input {
+  width: 100% !important; /* Important pour surcharger les styles par défaut si nécessaire */
+  box-sizing: border-box;
+}
+
+.react-datepicker__input-container input {
+  padding: 8px; /* Pour correspondre à vos autres inputs */
+  /* Ajoutez d'autres styles pour correspondre à vos inputs si besoin */
+}
+
+/* Cacher visuellement les jours de week-end dans react-datepicker */
+.react-datepicker-popper .react-datepicker__day--weekend-hidden {
+  display: none !important; /* Assure que la cellule du jour disparaît */
+  pointer-events: none !important; /* Empêcher toute interaction */
+}
+
+/* Cacher les en-têtes de colonne pour Samedi et Dimanche */
+/* Avec la locale 'fr', Lundi est le 1er, Samedi le 6ème, Dimanche le 7ème */
+.react-datepicker-popper .react-datepicker__day-names .react-datepicker__day-name:nth-child(6), /* Samedi */
+.react-datepicker-popper .react-datepicker__day-names .react-datepicker__day-name:nth-child(7)  /* Dimanche */ {
+  display: none !important;
 }

@@ -9,7 +9,7 @@
 /* ===== STYLES DE TABLE ===== */
 .three-month-grid table {
   border-collapse: collapse;
-  table-layout: auto;
+  table-layout: auto; /* Changé de 'fixed' à 'auto' pour mieux s'adapter au contenu, surtout à l'impression */
   width: 100%;
   border: 2px solid #999999; /* Ajout d'un cadre autour du tableau */
   background-color: white;
@@ -134,10 +134,6 @@
   padding: 3px 8px; /* Padding original de intervention-name-cell */
   box-sizing: border-box;
   white-space: nowrap;
-  /* line-height n'est plus nécessaire ici car flex s'en occupe, 
-     mais peut être conservé si le contenu flex a plusieurs lignes 
-     et que l'alignement de la ligne de base du texte est important. */
-  /* line-height: calc(28px - 2 * 3px); */
 }
 
 /* ===== STYLES DES CELLULES DE JOUR ===== */
@@ -147,8 +143,7 @@
   max-width: 18px;
   height: 28px;
   padding: 3px 2px;
-  /* Ajustement pour l'alignement vertical du contenu */
-  line-height: calc(28px - 2 * 3px); /* hauteur de cellule - padding vertical total (3px haut + 3px bas) */
+  line-height: calc(28px - 2 * 3px); 
   border: 1px solid #eee;
   box-sizing: border-box;
   overflow: hidden;
@@ -160,16 +155,10 @@
 
 .three-month-grid .project-day-cell {
   background-color: #fafafa;
-  /* Les styles de bordure haute/basse sont gérés par tr.project-header-row > td */
 }
 
 .three-month-grid .lot-row-day-cell {
   background-color: #fdfdfd;
-  /* Les styles de bordure haute/basse sont gérés par tr.lot-header-row > td */
-}
-
-.three-month-grid .intervention-row-day-cell {
-  /* Les styles de bordure haute/basse sont gérés par tr.intervention-row > td */
 }
 
 /* ===== STYLES DES LIGNES ===== */
@@ -187,33 +176,30 @@
 
 .three-month-grid tr.intervention-row > td {
   border-top: 1px solid #e0e0e0;
-  /* Assure une bordure basse cohérente avec la bordure haute pour les cellules de cette ligne, */
-  /* et aide à éviter la perception de "double bordure" en clarifiant la bordure de la ligne d'intervention elle-même. */
   border-bottom: 1px solid #e0e0e0;
 }
 
-/* 
-Styles pour le DIV interne qui représente visuellement le bloc d'intervention.
-Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
-*/
+.three-month-grid tbody {
+  /* display: table-row-group !important;  Cette règle est plus pertinente pour l'impression */
+}
+
+/* ===== BLOCS D'INTERVENTION ===== */
 .three-month-grid .intervention-block-base {
   text-align: left;
-  border-radius: 4px; /* Vous pouvez réactiver ceci maintenant */
+  border-radius: 4px;
   font-weight: 600;
   font-size: 0.75em;
   cursor: pointer;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  /* color: white; */ /* La couleur est gérée dynamiquement par style en ligne */
-  position: relative; /* Nécessaire pour les poignées absolues à l'intérieur */
-  overflow: visible; /* Permet au contenu (comme le texte) de déborder */
+  position: relative;
+  overflow: visible; 
   transition: all 0.2s ease;
+  box-sizing: border-box; /* Ajouté pour une meilleure gestion du padding/border */
 }
 
-/* Assurer que la cellule TD contenant le bloc d'intervention permet le dépassement */
 .three-month-grid td.intervention-block-container-td {
-  overflow: visible; /* Surcharge le 'overflow: hidden' de .day-cell-base */
+  overflow: visible; 
 }
-
 
 .three-month-grid .intervention-block-base:hover {
   transform: translateY(-1px);
@@ -280,22 +266,19 @@ Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
 /* ===== CELLULES DE REMPLISSAGE ===== */
 .three-month-grid .project-name-cell-empty-filler {
   background-color: #e3f2fd;
-  /* Assurer une bordure droite cohérente pour la deuxième colonne */
-  border-right: 2px solid#999999; /* Épaisseur à 2px */
+  border-right: 2px solid#999999; 
 }
 
 .three-month-grid .lot-name-cell-empty-filler {
   background-color: #f3e5f5;
-  /* Assurer une bordure droite cohérente pour la deuxième colonne */
-  border-right: 2px solid#999999; /* Épaisseur à 2px */
+  border-right: 2px solid#999999; 
 }
 
 .three-month-grid .no-intervention-cell {
   font-style: italic;
   color: #6c757d;
   background-color: #f8f9fa;
-  /* Assurer une bordure droite cohérente pour la deuxième colonne */
-  border-right: 2px solid #999999; /* Épaisseur à 2px */
+  border-right: 2px solid #999999; 
 }
 
 /* ===== INDICATEUR DU JOUR ACTUEL ===== */
@@ -318,14 +301,12 @@ Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
 
 @media print {
   body * {
-    visibility: hidden !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    visibility: hidden !important; 
   }
 
   .print-title {
     display: block !important;
-    visibility: visible !important;
+    visibility: visible !important; 
     text-align: center;
     font-size: 1.5em;
     font-weight: bold;
@@ -334,56 +315,118 @@ Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
   }
 
   .three-month-grid,
-  .three-month-grid * {
-    visibility: visible !important;
+  .three-month-grid *,
+  .grid-print-container { 
+    visibility: visible !important; 
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   .three-month-grid {
     position: static !important;
-    /* width: 100% !important; */ /* Retiré pour permettre au tableau de prendre sa largeur naturelle */
+    width: auto !important; 
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
-    /* page-break-inside: avoid; Retiré pour permettre au tableau de s'étendre sur plusieurs pages si nécessaire */
+    display: block !important; 
   }
 
-
-
-  /* Styles pour le conteneur immédiat de la grille dans App.jsx */
   .grid-print-container {
-    width: auto !important; /* Laisser le conteneur prendre la largeur de son contenu */
-    overflow: visible !important; /* S'assurer que le contenu peut déborder pour l'impression */
-    padding: 0 !important; /* Supprimer le padding qui pourrait contraindre */
+    width: auto !important; 
+    overflow: visible !important; 
+    padding: 0 !important; 
+    display: block !important; 
   }
 
   .three-month-grid table {
-    width: auto !important; /* Permettre au tableau de déterminer sa propre largeur */
-    min-width: max-content; /* Force le tableau à sa largeur de contenu minimale */
-    min-width: -moz-max-content; /* Firefox */
-    min-width: -webkit-max-content; /* Chrome/Safari */
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: max-content !important; 
+    table-layout: auto !important; 
     page-break-inside: auto;
-    table-layout: auto; /* Important pour que min-width: max-content fonctionne bien */
+    border: 1px solid #ccc !important; 
+  }
+
+  .three-month-grid table col {
+    width: auto !important; 
   }
 
   .three-month-grid thead th {
-    position: static !important; /* Rendre les en-têtes non-sticky pour l'impression */
-    /* Les autres styles de thead th (background, border, etc.) sont conservés ou peuvent être ajustés ici si besoin */
+    position: static !important; 
+    text-align: center !important; 
+    vertical-align: middle !important; /* Ajout pour centrage vertical */
   }
 
   .three-month-grid th,
   .three-month-grid td {
-    overflow: visible !important; /* S'assurer que le contenu des cellules n'est pas coupé */
-    /* white-space: nowrap; */ /* Peut aider si les cellules coupent le texte, mais peut rendre les colonnes très larges */
+    display: table-cell !important; 
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+    font-size: 6pt !important;   
+    border: 1px solid #ddd !important; 
+    overflow: visible !important; 
+    white-space: nowrap; 
+    /* text-align: left !important; Retiré pour permettre aux th de se centrer */
+    vertical-align: top !important;
+    height: auto !important; 
+    line-height: 1.2 !important; 
+    box-sizing: border-box !important;
+  }
+  
+  /* Spécifier l'alignement pour les td si nécessaire, les th sont déjà centrés */
+  .three-month-grid td {
+    text-align: left !important;
   }
 
+
+  .three-month-grid .project-name-cell,
+  .three-month-grid .lot-name-cell,
+  .three-month-grid .intervention-name-cell-outer,
+  .three-month-grid .intervention-name-cell-inner { 
+    white-space: normal !important; 
+    min-width: auto !important;
+    max-width: none !important;
+    width: auto !important; 
+    vertical-align: top !important; 
+    height: auto !important; 
+    text-align: left !important; /* Assurer l'alignement à gauche */
+  }
+
+  /* Restaurer les styles de bordure spécifiques aux lignes pour l'impression */
+  .three-month-grid tr.project-header-row > td,
+  .three-month-grid tr.project-header-row > th {
+    border-top: 3px solid #999999 !important;
+    border-bottom: 1px solid #999999 !important;
+  }
+
+  .three-month-grid tr.lot-header-row > td,
+  .three-month-grid tr.lot-header-row > th {
+    border-top: 2px solid #999999 !important;
+    border-bottom: 1px solid #999999 !important;
+  }
+
+  .three-month-grid tr.intervention-row > td {
+    border-top: 1px solid #e0e0e0 !important;
+    border-bottom: 1px solid #e0e0e0 !important;
+  }
+  /* Fin des styles de bordure spécifiques aux lignes pour l'impression */
+
+
+
   .three-month-grid thead {
-    display: table-header-group;
+    display: table-header-group !important; /* Important pour la répétition des en-têtes */
+  }
+
+  .three-month-grid tbody {
+    display: table-row-group !important; /* Comportement standard pour tbody */
   }
 
   .three-month-grid tbody tr {
-    page-break-inside: avoid;
+    page-break-inside: auto; 
   }
 
   .print-hide,
@@ -397,16 +440,15 @@ Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
     visibility: hidden !important;
   }
 
-  .three-month-grid th,
-  .three-month-grid td {
-    border-color: #999999 !important;
-    font-size: 10px !important;
-  }
-
   .three-month-grid .intervention-block-base {
     font-size: 8px !important;
-    text-shadow: none !important; /* Supprimer l'ombre pour l'impression */
-    padding: 1px 3px !important;
+    text-shadow: none !important; 
+    padding: 2px 3px !important; /* Padding interne du bloc */
+    min-height: 16px !important; /* Hauteur minimale pour assurer une certaine épaisseur */
+    height: 100% !important;     /* Tenter de remplir la hauteur de la cellule TD parente */
+    line-height: 1.2 !important; 
+    display: block !important; 
+    box-sizing: border-box !important;
   }
 
   .three-month-grid .link-handle,
@@ -415,7 +457,7 @@ Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
   }
 
   .three-month-grid [data-testid="current-day-indicator"] {
-    display: none !important; /* Cacher l'indicateur du jour actuel à l'impression */
+    display: none !important; 
   }
 }
 
@@ -427,7 +469,7 @@ Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
   
   .three-month-grid .project-name-cell,
   .three-month-grid .lot-name-cell,
-  .three-month-grid .intervention-name-cell {
+  .three-month-grid .intervention-name-cell-outer { /* Cibler le conteneur externe */
     min-width: 120px;
   }
   
@@ -463,7 +505,7 @@ Ce div est à l'intérieur d'une cellule TD (qui peut avoir un colSpan).
 
 .three-month-grid .project-name-cell span:focus,
 .three-month-grid .lot-name-cell span:focus,
-.three-month-grid .intervention-name-cell span:focus {
+.three-month-grid .intervention-name-cell-inner span:focus { /* Cibler le span dans le div interne */
   outline: 2px solid #2196f3;
   outline-offset: 1px;
   border-radius: 2px;

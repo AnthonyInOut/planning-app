@@ -7,24 +7,27 @@ import CreateProjet from './CreateProjet';
 import CreateUser from './CreateUser'; // Importer le nouveau composant CreateUser
 import CreateLot from './CreateLot';
 import ListeLots from './ListeLots';
-import GestionInterventions from './GestionInterventions';
-import CalendrierInterventions from './CalendrierInterventions';
+import GestionInterventions from './GestionInterventions'; // Importer GestionInterventions
 import ThreeMonthGrid from './ThreeMonthGrid';
 import Modal from './Modal'; // Importer le composant Modal
 import EditProjet from './EditProjet'; // Importer le nouveau composant EditProjet
 import EditLot from './EditLot'; // Importer le nouveau composant EditLot
+import GestionEntreprisesModal from './GestionEntreprisesModal'; // Importer la modale de gestion des entreprises
+import GestionUtilisateursModal from './GestionUtilisateursModal'; // Importer la modale de gestion des utilisateurs
+import GestionSynthesesModal from './GestionSynthesesModal'; // NOUVEAU: Importer la modale de gestion des synthèses
 import moment from 'moment';
 // Locale setting moved to main.jsx
 import { shadeColor, findAvailableShade } from './utils/colorUtils'; // Importer findAvailableShade
 import { getSpecialDaysDataForRange } from './utils/holidays'; // Assurez-vous que ce chemin est correct
 import { INTERVENTION_ETATS, ETAT_STYLES, ETAT_CATEGORIES, ETATS_PAR_CATEGORIE, getHachuresStyle } from './utils/interventionStates'; // Importer les états et la fonction pour les hachures
+import './App.css'; // Importer le fichier CSS ici
 
 function App() {
   const [projets, setProjets] = useState([]);
+  const [unfilteredProjets, setUnfilteredProjets] = useState([]); // Pour la détection de conflit
   const [interventions, setInterventions] = useState([]);
   const [selectedIntervention, setSelectedIntervention] = useState(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [refreshFlag, setRefreshFlag] = useState(false);
+  const [isCreatingIntervention, setIsCreatingIntervention] = useState(false);
   const [refreshCalendar, setRefreshCalendar] = useState(false);
   const [viewMode, setViewMode] = useState('3months'); // Les valeurs seront '3months', '6months', '12months'
 
@@ -53,7 +56,11 @@ function App() {
   const [usersList, setUsersList] = useState([]);
   const [currentUser, setCurrentUser] = useState(null); // Stockera l'objet utilisateur complet
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [isGestionEntreprisesModalOpen, setIsGestionEntreprisesModalOpen] = useState(false);
+  const [isGestionUtilisateursModalOpen, setIsGestionUtilisateursModalOpen] = useState(false);
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [isGestionSynthesesModalOpen, setIsGestionSynthesesModalOpen] = useState(false); // NOUVEAU: État pour la modale de synthèse
+  const [entreprisesList, setEntreprisesList] = useState([]); // État pour la liste des entreprises
   const [showLegend, setShowLegend] = useState(false); // État pour la légende
   const [showCurrentDayIndicator, setShowCurrentDayIndicator] = useState(true); // Nouvel état pour l'indicateur du jour actuel
 
@@ -69,30 +76,59 @@ function App() {
     }
   };
 
-  const fetchProjets = async () => {
-    let query = supabase
-      .from('projets')
-      .select('id, nom, color, user_id, lots(id, nom, projet_id, color, display_order, entreprise_id)') // <-- Ajout de user_id ici
-      .order('id', { ascending: true })
-      .order('display_order', { foreignTable: 'lots', ascending: true });
-
-    if (currentUser && !showAllProjects) {
-      query = query.eq('user_id', currentUser.id);
-    }
-    // Si !currentUser et !showAllProjects, on pourrait choisir de ne rien afficher ou tous par défaut.
-    // Si showAllProjects est true, aucune condition user_id n'est ajoutée, donc tous les projets sont récupérés.
-
-    const { data, error } = await query;
-
-    if (!error) {
-      setProjets(data);
+  const fetchEntreprisesList = async () => {
+    const { data, error } = await supabase.from('entreprises').select('id, nom'); // Récupérer id et nom
+    if (error) {
+      console.error("Erreur lors de la récupération de la liste des entreprises:", error);
     } else {
-      console.error("Erreur lors de la récupération des projets :", error);
+      setEntreprisesList(data || []);
     }
   };
 
+  const fetchProjets = async () => {
+    setIsLoadingData(true); // Indiquer le début du chargement
+    //console.log("[App.jsx fetchProjets] DÉBUT du fetch de tous les projets.");
+
+    // 1. Toujours récupérer TOUS les projets pour la logique interne (conflits, etc.)
+    const { data: allProjetsData, error: allProjetsError } = await supabase
+      .from('projets')
+      .select('id, nom, color, user_id, lots(id, nom, projet_id, color, display_order, entreprise_id)') // Assurer que entreprise_id est sélectionné pour chaque lot
+      .order('id', { ascending: true })
+      .order('display_order', { foreignTable: 'lots', ascending: true });
+
+    if (allProjetsError) {
+      console.error("[App.jsx fetchProjets] Erreur lors de la récupération de tous les projets :", allProjetsError);
+      setUnfilteredProjets([]);
+      setProjets([]);
+      setIsLoadingData(false);
+      return;
+    }
+
+    if (!allProjetsData) {
+      // Ce cas couvre null, undefined. Si allProjetsData est [], la condition suivante le gérera.
+      console.warn("[App.jsx fetchProjets] allProjetsData est null ou undefined. unfilteredProjets sera vide.");
+      setUnfilteredProjets([]);
+      setProjets([]);
+      setIsLoadingData(false);
+      return;
+    }
+    
+    //console.log('[App.jsx fetchProjets] allProjetsData récupéré:', JSON.parse(JSON.stringify(allProjetsData)));
+    setUnfilteredProjets(allProjetsData); // Définir unfilteredProjets ici
+
+    // 2. Filtrer les projets pour l'affichage si nécessaire
+    if (currentUser && !showAllProjects) {
+      const filteredProjetsForDisplay = allProjetsData.filter(p => p.user_id === currentUser.id);
+      setProjets(filteredProjetsForDisplay);
+    } else {
+      setProjets(allProjetsData); // Afficher tous les projets
+    }
+
+    setIsLoadingData(false);
+    //console.log("[App.jsx fetchProjets] FIN. unfilteredProjets length:", allProjetsData.length, "projets (pour affichage) length:", (currentUser && !showAllProjects ? allProjetsData.filter(p => p.user_id === currentUser.id) : allProjetsData).length);
+  };
+
   const fetchLinks = async (optimisticAction = null) => {
-    console.log("[App.jsx] fetchLinks - DÉBUT", "Action optimiste:", optimisticAction); // Log de début
 
     // Step 1: Apply optimistic action to ODL state immediately (scheduled by React)
     setOptimisticallyDeletedLinkIds(prevODL => {
@@ -100,16 +136,12 @@ function App() {
         if (optimisticAction) {
             if (optimisticAction.type === 'delete' && optimisticAction.id) {
                 newODL.add(optimisticAction.id);
-                console.log(`[App.jsx] Optimistic 'delete': ID ${optimisticAction.id} added to ODL (scheduled). ODL size: ${newODL.size}`);
             } else if (optimisticAction.type === 'add' && optimisticAction.id) {
                 newODL.delete(optimisticAction.id);
-                console.log(`[App.jsx] Optimistic 'add': ID ${optimisticAction.id} removed from ODL (scheduled). ODL size: ${newODL.size}`);
             } else if (optimisticAction.type === 'conflict_resolved' && optimisticAction.id) {
                 newODL.delete(optimisticAction.id);
-                console.log(`[App.jsx] Optimistic 'conflict_resolved': ID ${optimisticAction.id} removed from ODL (scheduled). ODL size: ${newODL.size}`);
             }
         }
-        console.log("[App.jsx] fetchLinks - ODL state AFTER optimistic update (inside setState, scheduled):", newODL);
         return newODL; // This is the state React will use for the next render cycle
     });
 
@@ -118,13 +150,11 @@ function App() {
     if (optimisticAction) {
         if (optimisticAction.type === 'delete' && optimisticAction.id) {
             setLinks(prevLinks => prevLinks.filter(link => link.id !== optimisticAction.id));
-            console.log(`[App.jsx] Optimistic 'delete': Links UI updated (scheduled).`);
         } else if (optimisticAction.type === 'add' && optimisticAction.id && optimisticAction.newLink) {
             setLinks(prevLinks => {
                 if (prevLinks.some(link => link.id === optimisticAction.newLink.id)) return prevLinks;
                 return [...prevLinks, optimisticAction.newLink];
             });
-            console.log(`[App.jsx] Optimistic 'add': Links UI updated (scheduled).`);
         }
         // No setLinks update for 'conflict_resolved' here, the fetch will handle it.
     }
@@ -135,7 +165,6 @@ function App() {
         .from('links')
         .select('*');
 
-    console.log('[App.jsx] fetchLinks - Données de Supabase (après fetch):', data, 'Erreur:', error);
 
     if (!error) {
         const freshLinks = data || [];
@@ -149,7 +178,6 @@ function App() {
 
             // Create a Set of IDs from freshLinks for efficient lookup (ensure IDs are strings)
             const idsInFreshLinks = new Set(freshLinks.map(link => String(link.id)));
-            console.log("[App.jsx] fetchLinks - IDs in freshLinks:", Array.from(idsInFreshLinks));
 
             // Reconcile ODL: Remove IDs from ODL if they are *NOT* present in freshLinks
             // This means BDD confirms deletion, so they are no longer "optimistically deleted"
@@ -176,13 +204,10 @@ function App() {
             // Update the displayed links state with the filtered list
             // This setLinks call will be batched with the setOptimisticallyDeletedLinkIds call.
             setLinks(finalLinksToDisplay);
-            console.log('[App.jsx] fetchLinks - Links state updated (inside reconciliation setState):', finalLinksToDisplay, `Nombre: ${finalLinksToDisplay.length}`);
 
             // Log changes to ODL
             if (idsRemovedFromODL.size > 0) {
-                 console.log('[App.jsx] fetchLinks - IDs retirés de optimisticallyDeletedLinkIds (réconciliation):', Array.from(idsRemovedFromODL).join(', '));
             }
-            console.log('[App.jsx] fetchLinks - État final optimisticallyDeletedLinkIds sera:', reconciledODL);
 
             return reconciledODL; // Return the new set to update the actual state
         });
@@ -195,7 +220,6 @@ function App() {
 
   // Fonction consolidée pour récupérer interventions et liens
   const fetchAllData = async (optimisticLinkAction = null) => {
-    console.log("[App.jsx] fetchAllData - DÉBUT", "Action optimiste pour liens:", optimisticLinkAction);
     setIsLoadingData(true);
 
     const interventionsPromise = supabase.from('interventions').select(`
@@ -233,7 +257,6 @@ function App() {
       });
 
       if (updatesToPerform.length > 0) {
-        console.log(`[App.jsx] Mise à jour de ${updatesToPerform.length} interventions "A ne pas oublier"...`);
         await Promise.all(updatesToPerform)
           .then(() => console.log("[App.jsx] Interventions 'A ne pas oublier' mises à jour avec succès."))
           .catch(err => console.error("[App.jsx] Erreur lors de la mise à jour des interventions 'A ne pas oublier':", err));
@@ -246,7 +269,6 @@ function App() {
     await fetchLinks(optimisticLinkAction);
 
     setIsLoadingData(false);
-    console.log("[App.jsx] fetchAllData - FIN");
   };
 
   // Initial fetch on mount
@@ -254,6 +276,7 @@ function App() {
     fetchUsers(); // Récupérer la liste des utilisateurs
     fetchProjets();
     fetchAllData(); // Appel initial pour interventions et liens
+    fetchEntreprisesList(); // Charger la liste des entreprises
 
     // Restaurer l'utilisateur et la préférence d'affichage depuis localStorage
     const storedUserId = localStorage.getItem('currentUserId');
@@ -332,6 +355,18 @@ function App() {
     }
   };
 
+  const handleOpenGestionEntreprisesModal = () => {
+    setIsGestionEntreprisesModalOpen(true);
+  };
+
+  const handleOpenGestionUtilisateursModal = () => {
+    setIsGestionUtilisateursModalOpen(true);
+  };
+
+  const handleOpenGestionSynthesesModal = () => { // NOUVEAU: Handler pour la modale de synthèse
+    setIsGestionSynthesesModalOpen(true);
+  };
+
   const lots = useMemo(() => {
     return projets.reduce((acc, projet) => {
       if (projet.lots) {
@@ -345,6 +380,21 @@ function App() {
       return acc;
     }, []);
   }, [projets]);
+
+  // Lots non filtrés pour la détection de conflit
+  const unfilteredLots = useMemo(() => {
+    return (unfilteredProjets || []).reduce((acc, projet) => {
+      if (projet.lots) {
+        const lotsWithProjectContext = projet.lots.map(lot => ({
+          ...lot, // inclut entreprise_id si sélectionné dans fetchProjets
+          projetCouleur: projet.color || '#4a90e2',
+          projectName: projet.nom,
+        }));
+        acc.push(...lotsWithProjectContext);
+      }
+      return acc;
+    }, []);
+  }, [unfilteredProjets]);
 
   const handleInterventionUpdatedByGrid = () => {
     fetchAllData(); // Refetch tout pour la cohérence
@@ -366,13 +416,13 @@ function App() {
   const handleOpenCreateInterventionModal = (lotId) => {
     setCurrentLotIdForIntervention(lotId);
     setSelectedIntervention(null);
-    setIsCreating(true);
+    setIsCreatingIntervention(true);
     setIsGestionInterventionModalOpen(true);
   };
 
   const handleEditIntervention = (interventionToEdit) => {
     setSelectedIntervention(interventionToEdit);
-    setIsCreating(false);
+    setIsCreatingIntervention(false);
     setCurrentLotIdForIntervention(null);
     setIsGestionInterventionModalOpen(true);
   };
@@ -385,14 +435,14 @@ function App() {
       heure_fin: '17:00',
     });
     setCurrentLotIdForIntervention(lotId);
-    setIsCreating(true);
+    setIsCreatingIntervention(true);
     setIsGestionInterventionModalOpen(true);
   };
 
   const handleCloseInterventionModal = () => {
     setIsGestionInterventionModalOpen(false);
     setSelectedIntervention(null);
-    setIsCreating(false);
+    setIsCreatingIntervention(false);
     setCurrentLotIdForIntervention(null);
     fetchAllData();
   };
@@ -403,6 +453,7 @@ function App() {
   };
 
   const handleOpenEditLotModal = (lot) => {
+    //console.log('[App.jsx handleOpenEditLotModal] Lot to edit:', JSON.parse(JSON.stringify(lot))); // Log du lot
     setCurrentLotToEdit(lot);
     setIsEditLotModalOpen(true);
   };
@@ -497,7 +548,6 @@ function App() {
   };
 
   const handleDragEndLots = async (result) => {
-    console.log('[App.jsx] handleDragEndLots triggered with result:', result);
     const { source, destination } = result;
 
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
@@ -549,7 +599,7 @@ function App() {
   }, [viewMode]);
 
   return (
-    <div className="app-main-container" style={{ display: 'flex', height: '100vh' }}>
+    <div className="app-main-container" style={{ display: 'flex', height: '100vh' }}> {/* Ajout de la classe app-main-container */}
       <div className="print-hide" style={{
           width: '300px',
           minWidth: '300px',
@@ -583,6 +633,27 @@ function App() {
             <option value="all">Tous les projets</option>
             <option value="add_new_user" style={{ fontStyle: 'italic', color: 'blue' }}>+ Ajouter un utilisateur...</option>
           </select>
+        </div>
+        {/* Boutons de gestion ajoutés ici */}
+        <div style={{ marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <button 
+            onClick={handleOpenGestionEntreprisesModal} 
+            style={{ width: '100%', textAlign: 'left', padding: '8px 10px', justifyContent: 'flex-start' }}
+          >
+            Gérer les Entreprises
+          </button>
+          <button 
+            onClick={handleOpenGestionUtilisateursModal} 
+            style={{ width: '100%', textAlign: 'left', padding: '8px 10px', justifyContent: 'flex-start' }}
+          >
+            Gérer les Utilisateurs
+          </button>
+          <button // NOUVEAU: Bouton pour la gestion des synthèses
+            onClick={handleOpenGestionSynthesesModal}
+            style={{ width: '100%', textAlign: 'left', padding: '8px 10px', justifyContent: 'flex-start' }}
+          >
+            Gestion des Synthèses Mail
+          </button>
         </div>
         <div style={{
             display: 'flex',
@@ -632,9 +703,7 @@ function App() {
                 >
                   {(provided, snapshot) => {
                     if (snapshot.isDraggingOver) {
-                      console.log(`[Droppable projet-${projet.id}] IS DRAGGING OVER. Snapshot:`, JSON.parse(JSON.stringify(snapshot)));
                       if (provided.placeholder) {
-                        console.log(`[Droppable projet-${projet.id}] Placeholder element:`, provided.placeholder);
                       }
                     }
                     return (
@@ -654,8 +723,6 @@ function App() {
                           <Draggable key={lot.id.toString()} draggableId={lot.id.toString()} index={index}>
                             {(providedDraggable, snapshotDraggable) => {
                               if (snapshotDraggable.isDragging) {
-                                console.log(`[Draggable lot-${lot.id} IS DRAGGING] snapshotDraggable:`, JSON.parse(JSON.stringify(snapshotDraggable)));
-                                console.log(`[Draggable lot-${lot.id} IS DRAGGING] providedDraggable.draggableProps.style:`, JSON.parse(JSON.stringify(providedDraggable.draggableProps.style)));
                               }
 
                               return (
@@ -744,6 +811,7 @@ function App() {
               setIsCreateLotModalOpen(false);
               setCurrentProjetIdForLot(null);
             }}
+            onOpenGestionEntreprisesModal={handleOpenGestionEntreprisesModal} // Assurez-vous que le nom de la prop correspond
           />
         </Modal>
       )}
@@ -751,15 +819,18 @@ function App() {
       {isGestionInterventionModalOpen && (
         <Modal isOpen={isGestionInterventionModalOpen} onClose={handleCloseInterventionModal}>
           <h3 style={{ marginTop: 0 }}>
-            {isCreating ? `Nouvelle Intervention ${currentLotIdForIntervention ? `pour Lot ${lots.find(l => l.id === currentLotIdForIntervention)?.nom || `ID ${currentLotIdForIntervention}`}` : ''}` : `Modifier l'Intervention ${selectedIntervention?.nom || ''}`}
+            {isCreatingIntervention ? `Nouvelle Intervention ${currentLotIdForIntervention ? `pour Lot ${lots.find(l => l.id === currentLotIdForIntervention)?.nom || `ID ${currentLotIdForIntervention}`}` : ''}` : `Modifier l'Intervention ${selectedIntervention?.nom || ''}`}
           </h3>
           <GestionInterventions
-            lots={lots}
+            allLots={unfilteredLots} // Utiliser les lots non filtrés pour la logique interne de la modale
+            allProjets={unfilteredProjets} // Utiliser les projets non filtrés
+            allInterventions={interventions} // Toutes les interventions sont déjà globales
+            entreprisesList={entreprisesList} // Passer la liste des entreprises
             selectedIntervention={selectedIntervention}
-            isCreating={isCreating}
-            onRefreshCalendar={() => { fetchAllData(); handleCloseInterventionModal(); }} // Utiliser fetchAllData
+            isCreating={isCreatingIntervention}
+            onRefreshCalendar={() => { fetchAllData(); handleCloseInterventionModal(); }}
             onCloseForm={handleCloseInterventionModal}
-            initialLotId={isCreating ? currentLotIdForIntervention : selectedIntervention?.lot_id}
+            initialLotId={isCreatingIntervention ? currentLotIdForIntervention : selectedIntervention?.lot_id} // Correction: isCreatingIntervention
           />
         </Modal>
       )}
@@ -801,7 +872,9 @@ function App() {
             onClose={() => {
               setIsEditLotModalOpen(false);
               setCurrentLotToEdit(null);
-            }} />
+            }}
+            onOpenGestionEntreprisesModal={handleOpenGestionEntreprisesModal} // Ajouter cette prop ici
+          />
         </Modal>
       )}
       {isCreateUserModalOpen && (
@@ -811,6 +884,41 @@ function App() {
         </Modal>
       )}
 
+      {isGestionEntreprisesModalOpen && (
+        <Modal isOpen={isGestionEntreprisesModalOpen} onClose={() => setIsGestionEntreprisesModalOpen(false)}>
+          <GestionEntreprisesModal
+            isOpen={isGestionEntreprisesModalOpen}
+            onClose={() => setIsGestionEntreprisesModalOpen(false)}
+            onEntrepriseAddedOrUpdated={() => {
+              // Optionnel: rafraîchir des données si nécessaire, par exemple si les lots affichent des noms d'entreprises
+              // fetchProjets(); // ou fetchAllData();
+            }}
+          />
+        </Modal>
+      )}
+
+      {isGestionUtilisateursModalOpen && (
+        <Modal isOpen={isGestionUtilisateursModalOpen} onClose={() => setIsGestionUtilisateursModalOpen(false)}>
+          <GestionUtilisateursModal
+            isOpen={isGestionUtilisateursModalOpen}
+            onClose={() => setIsGestionUtilisateursModalOpen(false)}
+            onUserAddedOrUpdated={fetchUsers} // Rafraîchir la liste des utilisateurs après ajout/modif
+          />
+        </Modal>
+      )}
+
+      {/* NOUVEAU: Modale de Gestion des Synthèses */}
+      {isGestionSynthesesModalOpen && (
+        <Modal isOpen={isGestionSynthesesModalOpen} onClose={() => setIsGestionSynthesesModalOpen(false)}>
+          <GestionSynthesesModal
+            usersList={usersList} // Passer la liste des utilisateurs pour la sélection des destinataires
+            currentUser={currentUser} // L'utilisateur actuel pourrait être un destinataire par défaut
+            onClose={() => setIsGestionSynthesesModalOpen(false)}
+            // D'autres props pourraient être nécessaires, comme les fonctions pour sauvegarder la config
+            // et pour déclencher l'envoi manuel.
+          />
+        </Modal>
+      )}
 
       <div className="grid-print-container" style={{ width: '75%', padding: '1rem', overflow: 'auto' }}>
         <div className="print-hide"> {/* Cacher cette section lors de l'impression */}
@@ -858,6 +966,8 @@ function App() {
           isLoadingData={isLoadingData} // Passer l'état de chargement global
           showLegend={showLegend} // Passer l'état pour la légende
           interventionEtats={{ INTERVENTION_ETATS, ETAT_STYLES, ETAT_CATEGORIES, ETATS_PAR_CATEGORIE, getHachuresStyle }} // Passer les définitions d'états et la fonction pour les hachures
+          entreprisesList={entreprisesList}
+          projetsForConflictCheck={unfilteredProjets} // Passer les projets non filtrés pour la détection de conflit
           showCurrentDayIndicator={showCurrentDayIndicator} // Passer le nouvel état
           numberOfMonthsToDisplay={numberOfMonthsForGrid} // Passer le nombre de mois calculé
         />

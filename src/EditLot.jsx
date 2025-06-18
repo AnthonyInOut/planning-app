@@ -5,7 +5,7 @@ import { findAvailableShade } from './utils/colorUtils'; // Importer la nouvelle
 const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, onOpenGestionEntreprisesModal }) => {
   const [nomLot, setNomLot] = useState(''); // Changed from 'nom' to 'nomLot' for clarity
   const [toutesLesEntreprises, setToutesLesEntreprises] = useState([]); // Toutes les entreprises disponibles
-  const [selectedEntrepriseIds, setSelectedEntrepriseIds] = useState(new Set()); // IDs des entreprises associées à ce lot
+  const [selectedEntrepriseId, setSelectedEntrepriseId] = useState(''); // ID de l'entreprise principale associée
   const [loadingEntreprises, setLoadingEntreprises] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [couleurLot, setCouleurLot] = useState('#cccccc');
@@ -17,12 +17,11 @@ const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, on
 
   useEffect(() => {
     if (lot) {
+      console.log('[EditLot useEffect] Received lot prop:', JSON.parse(JSON.stringify(lot)));
       setNomLot(lot.nom || '');
-      // Initialiser les entreprises sélectionnées pour ce lot
-      const initialSelectedIds = new Set(
-        (lot.entreprises_associees || []).map(e => e.id)
-      );
-      setSelectedEntrepriseIds(initialSelectedIds);
+      // Initialiser l'entreprise principale sélectionnée pour ce lot
+      setSelectedEntrepriseId(lot.entreprise_id || ''); // Utilise directement lot.entreprise_id
+      console.log('[EditLot useEffect] Initial selectedEntrepriseId set to:', lot.entreprise_id || '');
       if (lot.color) {
         setCouleurLot(lot.color);
       } else if (parentProjet && parentProjet.color && siblingLots) {
@@ -45,7 +44,11 @@ const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, on
         console.error("Error fetching toutesLesEntreprises for EditLot:", error);
         setToutesLesEntreprises([]);
       } else {
-        setToutesLesEntreprises(data || []);
+        // Trier les entreprises par nom avant de les stocker dans l'état
+        const sortedEntreprises = (data || []).sort((a, b) => 
+          a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' })
+        );
+        setToutesLesEntreprises(sortedEntreprises);
       }
       setLoadingEntreprises(false);
     };
@@ -64,49 +67,30 @@ const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, on
     }
     setIsLoading(true);
 
-    const payload = {
+    const lotPayload = {
       nom: nomLot.trim(), // Use nomLot
-      color: couleurLot // Include color in the payload
+      color: couleurLot, // Include color in the payload
+      entreprise_id: selectedEntrepriseId || null // Mettre à jour entreprise_id directement sur le lot
     };
-    console.log("Updating Lot with payload:", payload, "for ID:", lot.id);
+    console.log("[EditLot handleSave] Updating Lot with payload:", lotPayload, "for ID:", lot.id);
+    // let allOperationsSuccessful = true; // Moins pertinent si on ne gère plus lots_entreprises ici
 
     const { error: lotUpdateError } = await supabase
       .from('lots')
-      .update(payload)
+      .update(lotPayload)
       .eq('id', lot.id);
-
     if (lotUpdateError) {
+      console.error("[EditLot handleSave] Error updating lot:", lotUpdateError);
       alert(`Erreur lors de la mise à jour du lot : ${lotUpdateError.message}`);
       setIsLoading(false);
-      return;
+      return; // Arrêter si la mise à jour du lot échoue
     }
+    console.log("[EditLot handleSave] Lot updated successfully.");
 
-    // Gérer les associations dans lots_entreprises
-    // 1. Supprimer les anciennes associations pour ce lot
-    const { error: deleteError } = await supabase
-      .from('lots_entreprises')
-      .delete()
-      .eq('lot_id', lot.id);
+    // La logique pour lots_entreprises est retirée pour se concentrer sur lots.entreprise_id
+    // Si vous avez besoin des deux, il faudra une logique plus complexe.
 
-    if (deleteError) {
-      console.error("Erreur lors de la suppression des anciennes associations d'entreprises:", deleteError);
-      // Gérer l'erreur, peut-être annuler ou informer l'utilisateur
-    }
-
-    // 2. Insérer les nouvelles associations
-    const newAssociations = Array.from(selectedEntrepriseIds).map(entrepriseId => ({
-      lot_id: lot.id,
-      entreprise_id: entrepriseId,
-    }));
-
-    if (newAssociations.length > 0) {
-      const { error: insertError } = await supabase.from('lots_entreprises').insert(newAssociations);
-      if (insertError) {
-        alert(`Erreur lors de la sauvegarde des associations d'entreprises : ${insertError.message}`);
-        // Gérer l'erreur
-      }
-    }
-    alert('Lot et associations mis à jour avec succès !');
+    alert('Lot mis à jour avec succès !');
     onSave();
     setIsLoading(false);
   };
@@ -116,7 +100,11 @@ const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, on
       alert('Erreur : ID du lot manquant.');
       return;
     }
-    // La suppression en cascade dans la BDD devrait gérer lots_entreprises
+    // Si vous utilisez toujours lots_entreprises et que la suppression en cascade n'est pas configurée,
+    // vous devriez supprimer les entrées de lots_entreprises ici avant de supprimer le lot.
+    // Exemple :
+    // await supabase.from('lots_entreprises').delete().eq('lot_id', lot.id);
+
     const { error } = await supabase.from('lots').delete().eq('id', lot.id);
 
     if (error) {
@@ -135,18 +123,6 @@ const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, on
     // ou la laisser ouverte. Pour l'instant, on appelle juste la fonction.
     // Si la modale EditLot doit se fermer, onClose() pourrait être appelé ici.
     onOpenGestionEntreprisesModal?.();
-  };
-
-  const handleEntrepriseSelectionChange = (entrepriseId) => {
-    setSelectedEntrepriseIds(prevSelectedIds => {
-      const newSelectedIds = new Set(prevSelectedIds);
-      if (newSelectedIds.has(entrepriseId)) {
-        newSelectedIds.delete(entrepriseId);
-      } else {
-        newSelectedIds.add(entrepriseId);
-      }
-      return newSelectedIds;
-    });
   };
 
   return (
@@ -169,24 +145,19 @@ const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, on
           <input type="color" id="edit-couleurLot" value={couleurLot} onChange={(e) => setCouleurLot(e.target.value)} style={{ width: '100%', padding: '3px', boxSizing: 'border-box', height: '40px' }} />
         </div>
         <div style={{ marginBottom: '15px' }}>
-          <label>Entreprises associées :</label>
+          <label htmlFor="edit-lot-entreprise-principale">Entreprise principale :</label>
           {loadingEntreprises ? <p>Chargement des entreprises...</p> : (
-            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #ccc', padding: '5px' }}>
-              {toutesLesEntreprises.length === 0 ? <p>Aucune entreprise disponible.</p> :
-                toutesLesEntreprises.map((entreprise) => (
-                <div key={entreprise.id}>
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedEntrepriseIds.has(entreprise.id)}
-                      onChange={() => handleEntrepriseSelectionChange(entreprise.id)}
-                      style={{ marginRight: '8px' }}
-                    />
-                    {entreprise.nom} {entreprise.contact_nom ? `- ${entreprise.contact_nom}` : ''}
-                  </label>
-                </div>
+            <select
+              id="edit-lot-entreprise-principale"
+              value={selectedEntrepriseId}
+              onChange={(e) => setSelectedEntrepriseId(e.target.value)}
+              style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+            >
+              <option value="">-- Aucune entreprise principale --</option>
+              {toutesLesEntreprises.map((entreprise) => (
+                <option key={entreprise.id} value={entreprise.id}>{entreprise.nom} {entreprise.contact_nom ? `(${entreprise.contact_nom})` : ''}</option>
               ))}
-            </div>
+            </select>
           )}
           {!loadingEntreprises && (
             <div style={{marginTop: '10px'}}>
@@ -196,11 +167,6 @@ const EditLot = ({ lot, onSave, onDelete, onClose, parentProjet, siblingLots, on
               >
                 Créer/Gérer une entreprise
               </button>
-            </div>
-          )}
-          {(lot.entreprises_associees || []).length > 0 && !loadingEntreprises && (
-            <div style={{fontSize: '0.8em', marginTop: '5px'}}>
-              Actuellement associées : {lot.entreprises_associees.map(e => e.nom).join(', ')}
             </div>
           )}
         </div>

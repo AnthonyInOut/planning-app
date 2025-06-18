@@ -7,6 +7,7 @@ const GestionUtilisateursModal = ({ isOpen, onClose, onUserAddedOrUpdated }) => 
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userTelephone, setUserTelephone] = useState('');
+  const [recapHebdomadaire, setRecapHebdomadaire] = useState(false); // Nouvel état pour le récap
   const [userEnEdition, setUserEnEdition] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -30,6 +31,7 @@ const GestionUtilisateursModal = ({ isOpen, onClose, onUserAddedOrUpdated }) => 
       setUserName('');
       setUserEmail('');
       setUserTelephone('');
+      setRecapHebdomadaire(false); // Réinitialiser le récap
       setUserEnEdition(null);
     }
   }, [isOpen]);
@@ -47,6 +49,7 @@ const GestionUtilisateursModal = ({ isOpen, onClose, onUserAddedOrUpdated }) => 
       name: userName.trim(),
       email: userEmail.trim() || null,
       telephone: userTelephone.trim() || null,
+      recap_hebdomadaire: recapHebdomadaire, // Ajouter la valeur du récap au payload
     };
 
     let error;
@@ -71,6 +74,7 @@ const GestionUtilisateursModal = ({ isOpen, onClose, onUserAddedOrUpdated }) => 
       setUserName('');
       setUserEmail('');
       setUserTelephone('');
+      setRecapHebdomadaire(false); // Réinitialiser après sauvegarde
       setUserEnEdition(null);
       fetchUsers();
       onUserAddedOrUpdated?.();
@@ -83,6 +87,7 @@ const GestionUtilisateursModal = ({ isOpen, onClose, onUserAddedOrUpdated }) => 
     setUserName(user.name);
     setUserEmail(user.email || '');
     setUserTelephone(user.telephone || '');
+    setRecapHebdomadaire(user.recap_hebdomadaire || false); // Charger la valeur du récap
     setMessage('');
   };
 
@@ -156,12 +161,24 @@ const GestionUtilisateursModal = ({ isOpen, onClose, onUserAddedOrUpdated }) => 
             style={{ padding: '8px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', marginTop: '5px' }}>
+          <input
+            id="recapHebdomadaire"
+            type="checkbox"
+            checked={recapHebdomadaire}
+            onChange={(e) => setRecapHebdomadaire(e.target.checked)}
+            style={{ marginRight: '8px', transform: 'scale(1.2)' }}
+          />
+          <label htmlFor="recapHebdomadaire" style={{ cursor: 'pointer' }}>
+            Recevoir un récapitulatif hebdomadaire automatique
+          </label>
+        </div>
         <div style={{display: 'flex', gap: '10px', marginTop: '10px'}}>
           <button type="submit" disabled={isLoading} style={{ padding: '8px 15px' }}>
             {isLoading ? 'Chargement...' : (userEnEdition ? 'Mettre à jour' : 'Ajouter')}
           </button>
           {userEnEdition && (
-            <button type="button" onClick={() => { setUserEnEdition(null); setUserName(''); setUserEmail(''); setUserTelephone(''); setMessage(''); }} style={{ padding: '8px 15px' }}>
+            <button type="button" onClick={() => { setUserEnEdition(null); setUserName(''); setUserEmail(''); setUserTelephone(''); setRecapHebdomadaire(false); setMessage(''); }} style={{ padding: '8px 15px' }}>
               Annuler l'édition
             </button>
           )}
@@ -176,6 +193,7 @@ const GestionUtilisateursModal = ({ isOpen, onClose, onUserAddedOrUpdated }) => 
               <strong>{user.name}</strong>
               {user.email && <div style={{fontSize: '0.9em', color: '#555'}}>Email: {user.email}</div>}
               {user.telephone && <div style={{fontSize: '0.9em', color: '#555'}}>Tél: {user.telephone}</div>}
+              <div style={{fontSize: '0.9em', color: user.recap_hebdomadaire ? 'green' : '#777'}}>Récap hebdo: {user.recap_hebdomadaire ? 'Oui' : 'Non'}</div>
             </div>
             <div>
               <button onClick={() => handleEdit(user)} style={{ marginRight: '10px', padding: '5px 10px' }} disabled={isLoading}>Modifier</button>

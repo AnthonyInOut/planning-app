@@ -4,7 +4,7 @@ import { findAvailableShade } from './utils/colorUtils'; // Importer la nouvelle
 
 const CreateLot = ({ onAjout, projetId: parentProjetId, parentProjet, siblingLots, onOpenGestionEntreprisesModal }) => {
   const [nom, setNom] = useState('');
-  const [selectedEntrepriseIds, setSelectedEntrepriseIds] = useState(new Set()); // Pour la sélection multiple
+  const [selectedEntrepriseId, setSelectedEntrepriseId] = useState(''); // Pour l'entreprise principale unique
   const [loadingEntreprises, setLoadingEntreprises] = useState(true); // Nouvel état de chargement
   const [couleurLot, setCouleurLot] = useState('#cccccc');
   const [toutesLesEntreprises, setToutesLesEntreprises] = useState([]); // État pour la liste de toutes les entreprises
@@ -61,12 +61,13 @@ const CreateLot = ({ onAjout, projetId: parentProjetId, parentProjet, siblingLot
     const payload = { 
       nom, 
       projet_id: parentProjetId, 
-      // entreprise_id n'est plus directement sur le lot
+      entreprise_id: selectedEntrepriseId || null, // Sauvegarder l'ID de l'entreprise principale
       color: couleurLot, 
       display_order: newOrder 
     };
     console.log("Submitting Lot:", payload);
-    const { data: newLotData, error: lotInsertError } = await supabase
+    // const { data: newLotData, error: lotInsertError } = await supabase // newLotData n'est plus utilisé ici
+    const { error: lotInsertError } = await supabase
       .from('lots')
       .insert([payload])
       .select()
@@ -77,21 +78,11 @@ const CreateLot = ({ onAjout, projetId: parentProjetId, parentProjet, siblingLot
       return;
     }
 
-    if (newLotData && selectedEntrepriseIds.size > 0) {
-      const associations = Array.from(selectedEntrepriseIds).map(entrepriseId => ({
-        lot_id: newLotData.id,
-        entreprise_id: entrepriseId,
-      }));
-      const { error: assocError } = await supabase.from('lots_entreprises').insert(associations);
-      if (assocError) {
-        alert('Lot créé, mais erreur lors de l\'association des entreprises: ' + assocError.message);
-        // Vous pourriez vouloir supprimer le lot créé si l'association échoue, ou laisser l'utilisateur corriger.
-      }
-    } else {
-      alert('Lot ajouté avec succès !');
-    }
+    // La logique pour la table de liaison lots_entreprises est retirée
+    alert('Lot ajouté avec succès !');
+
     setNom('');
-    setSelectedEntrepriseIds(new Set()); // Réinitialiser les entreprises sélectionnées
+    setSelectedEntrepriseId(''); // Réinitialiser l'entreprise sélectionnée
     setCouleurLot('#cccccc'); // Réinitialiser la couleur du lot
     if (onAjout) {
       onAjout(); // 🔁 Rafraîchir la liste des projets/lots après ajout
@@ -104,18 +95,6 @@ const CreateLot = ({ onAjout, projetId: parentProjetId, parentProjet, siblingLot
 
   // La fonction handleAddNewEntreprise est supprimée car la création se fait via la modale globale
 
-
-  const handleEntrepriseSelectionChange = (entrepriseId) => {
-    setSelectedEntrepriseIds(prevSelectedIds => {
-      const newSelectedIds = new Set(prevSelectedIds);
-      if (newSelectedIds.has(entrepriseId)) {
-        newSelectedIds.delete(entrepriseId);
-      } else {
-        newSelectedIds.add(entrepriseId);
-      }
-      return newSelectedIds;
-    });
-  };
   return (
     <form onSubmit={handleSubmit}>
       <h2>Ajouter un lot</h2>
@@ -134,24 +113,19 @@ const CreateLot = ({ onAjout, projetId: parentProjetId, parentProjet, siblingLot
       </div>
 
       <div>
-        <label>Entreprises associées (optionnel) :</label>
+        <label htmlFor="create-lot-entreprise-principale">Entreprise principale (optionnel) :</label>
         {loadingEntreprises ? <p>Chargement des entreprises...</p> : (
-          <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #ccc', padding: '5px', marginBottom: '10px' }}>
-            {toutesLesEntreprises.length === 0 ? <p>-- Aucune entreprise disponible --</p> :
-              toutesLesEntreprises.map((entreprise) => (
-              <div key={entreprise.id}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedEntrepriseIds.has(entreprise.id)}
-                    onChange={() => handleEntrepriseSelectionChange(entreprise.id)}
-                    style={{ marginRight: '8px' }}
-                  />
-                  {entreprise.nom} {entreprise.contact_nom ? `- ${entreprise.contact_nom}` : ''}
-                </label>
-              </div>
+          <select
+            id="create-lot-entreprise-principale"
+            value={selectedEntrepriseId}
+            onChange={(e) => setSelectedEntrepriseId(e.target.value)}
+            style={{ width: '100%', padding: '8px', boxSizing: 'border-box', marginBottom: '10px' }}
+          >
+            <option value="">-- Aucune entreprise principale --</option>
+            {toutesLesEntreprises.map((entreprise) => (
+              <option key={entreprise.id} value={entreprise.id}>{entreprise.nom} {entreprise.contact_nom ? `(${entreprise.contact_nom})` : ''}</option>
             ))}
-          </div>
+          </select>
         )}
         {/* Bouton pour ouvrir la modale de gestion des entreprises */}
         {!loadingEntreprises && (
